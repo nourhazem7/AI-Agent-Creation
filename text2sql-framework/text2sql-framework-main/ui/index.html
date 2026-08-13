@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wedy.ai — Text to SQL</title>
+  <style>
+    /* ── Reset & Base ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red:        #CC0000;
+      --red-dark:   #C4252A;
+      --red-light:  #EB4949;
+      --red-pale:   #F9AB9B;
+      --black:      #000000;
+      --gray-900:   #1C2325;
+      --gray-800:   #293537;
+      --gray-700:   #424242;
+      --gray-600:   #475052;
+      --gray-500:   #5F6B6D;
+      --gray-400:   #7F898A;
+      --gray-300:   #9FA0A0;
+      --gray-200:   #DCDDDD;
+      --gray-100:   #EDEBEB;
+      --white:      #FFFFFF;
+      --bg:         #FFFFFF;
+      --border:     #EDEBEB;
+      --font:       'Segoe UI', helvetica, arial, sans-serif;
+      --font-bold:  'Segoe UI Bold', wf_segoe-ui_bold, helvetica, arial, sans-serif;
+      --radius:     8px;
+      --radius-lg:  12px;
+      --shadow:     0 2px 12px rgba(0,0,0,.08);
+      --shadow-lg:  0 8px 32px rgba(0,0,0,.12);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--gray-700);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Typography ─────────────────────────────────────────────────── */
+    h1, h2, h3 { font-family: var(--font-bold); color: var(--black); }
+
+    /* ── Scrollbar ──────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--gray-100); }
+    ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       VIEW SYSTEM
+    ═══════════════════════════════════════════════════════════════════ */
+    .view { display: none; height: 100vh; }
+    .view.active { display: flex; }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       VIEW 1 — CONNECT
+    ═══════════════════════════════════════════════════════════════════ */
+    #view-connect {
+      flex-direction: row;
+      align-items: stretch;
+    }
+
+    /* Left panel — branding */
+    .connect-brand {
+      width: 42%;
+      background: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 64px 56px;
+      position: relative;
+      overflow: hidden;
+    }
+    .connect-brand::before {
+      content: '';
+      position: absolute;
+      top: -120px; right: -120px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(204,0,0,.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .connect-brand::after {
+      content: '';
+      position: absolute;
+      bottom: -80px; left: -80px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(196,37,42,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 56px;
+      position: relative;
+      z-index: 1;
+    }
+    .brand-logo img {
+      height: 44px;
+      width: auto;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+    }
+    .brand-logo-text {
+      font-family: var(--font-bold);
+      font-size: 22px;
+      color: var(--white);
+      letter-spacing: -.3px;
+    }
+    .brand-logo-text span { color: var(--red-light); }
+
+    .brand-headline {
+      font-family: var(--font-bold);
+      font-size: 32px;
+      color: var(--white);
+      line-height: 1.25;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
+    }
+    .brand-headline em {
+      font-style: normal;
+      color: var(--red-light);
+    }
+
+    .brand-sub {
+      font-size: 15px;
+      color: var(--gray-300);
+      line-height: 1.7;
+      max-width: 340px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-features {
+      margin-top: 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+    .brand-feature {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--gray-200);
+      font-size: 13px;
+    }
+    .brand-feature-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: rgba(204,0,0,.2);
+      border: 1px solid rgba(204,0,0,.35);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      color: var(--red-light);
+      font-size: 15px;
+    }
+
+    .brand-footer {
+      position: absolute;
+      bottom: 32px;
+      left: 56px;
+      font-size: 11px;
+      color: var(--gray-500);
+      z-index: 1;
+    }
+
+    /* Right panel — form */
+    .connect-form-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 56px;
+      background: var(--white);
+      overflow-y: auto;
+    }
+
+    .connect-form-card {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .connect-form-title {
+      font-size: 24px;
+      font-family: var(--font-bold);
+      color: var(--black);
+      margin-bottom: 6px;
+    }
+    .connect-form-subtitle {
+      font-size: 13px;
+      color: var(--gray-400);
+      margin-bottom: 40px;
+    }
+
+    /* Form controls */
+    .field { margin-bottom: 20px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 7px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--gray-700);
+      background: var(--white);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(204,0,0,.08);
+    }
+    .field input::placeholder { color: var(--gray-300); }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field-hint {
+      font-size: 11px;
+      color: var(--gray-400);
+      margin-top: 5px;
+    }
+
+    .field-row { display: flex; gap: 14px; }
+    .field-row .field { flex: 1; }
+
+    /* Toggle advanced */
+    .toggle-advanced {
+      background: none;
+      border: none;
+      color: var(--gray-400);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color .15s;
+    }
+    .toggle-advanced:hover { color: var(--red); }
+    .toggle-advanced svg { transition: transform .2s; }
+    .toggle-advanced.open svg { transform: rotate(180deg); }
+
+    .advanced-section { display: none; }
+    .advanced-section.open { display: block; }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      font-family: var(--font-bold);
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: background .15s, transform .1s, box-shadow .15s;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(.98); }
+
+    .btn-primary {
+      background: var(--red);
+      color: var(--white);
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      box-shadow: 0 4px 12px rgba(204,0,0,.3);
+    }
+    .btn-primary:hover { background: var(--red-dark); box-shadow: 0 6px 18px rgba(204,0,0,.4); }
+    .btn-primary:disabled { background: var(--gray-300); box-shadow: none; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--gray-500);
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .btn-ghost:hover { background: var(--gray-100); color: var(--gray-700); }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      padding: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--gray-400);
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+    }
+    .btn-icon:hover { background: var(--gray-100); color: var(--gray-600); }
+
+    /* Alert */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert.error { background: #FFF0F0; border: 1px solid #FFCCCC; color: var(--red-dark); display: block; }
+    .alert.success { background: #F0FFF4; border: 1px solid #A3E4B5; color: #1A7A3A; display: block; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .spinner.visible { display: inline-block; }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       VIEW 2 — CHAT
+    ═══════════════════════════════════════════════════════════════════ */
+    #view-chat {
+      flex-direction: row;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 260px;
+      min-width: 260px;
+      background: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid rgba(255,255,255,.06);
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-header img {
+      height: 28px;
+      filter: brightness(0) invert(1);
+    }
+    .sidebar-header-text {
+      font-family: var(--font-bold);
+      font-size: 15px;
+      color: var(--white);
+    }
+    .sidebar-header-text span { color: var(--red-light); }
+
+    .sidebar-section {
+      padding: 16px 14px 8px;
+    }
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+      padding: 0 4px;
+      margin-bottom: 8px;
+    }
+
+    .db-badge {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .db-badge-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 2px;
+    }
+    .db-badge-meta {
+      font-size: 11px;
+      color: var(--gray-400);
+    }
+    .db-badge-dot {
+      width: 6px; height: 6px;
+      background: #4ADE80;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+    .schema-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 14px 16px;
+    }
+    .table-item {
+      padding: 7px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .12s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--gray-300);
+      font-size: 12px;
+    }
+    .table-item:hover { background: rgba(255,255,255,.07); color: var(--white); }
+    .table-item svg { color: var(--gray-500); flex-shrink: 0; }
+    .table-item:hover svg { color: var(--red-light); }
+
+    .sidebar-footer {
+      padding: 12px 14px;
+      border-top: 1px solid rgba(255,255,255,.07);
+    }
+    .disconnect-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      background: none;
+      border: none;
+      color: var(--gray-400);
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: background .12s, color .12s;
+    }
+    .disconnect-btn:hover { background: rgba(204,0,0,.15); color: var(--red-light); }
+
+    /* ── Chat main ────────────────────────────────────────────────────── */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--white);
+    }
+
+    /* Top bar */
+    .chat-topbar {
+      padding: 0 24px;
+      height: 58px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--white);
+    }
+    .topbar-title {
+      font-family: var(--font-bold);
+      font-size: 15px;
+      color: var(--black);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar-badge {
+      font-size: 11px;
+      background: var(--gray-100);
+      border: 1px solid var(--border);
+      color: var(--gray-500);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-family: var(--font);
+    }
+    .topbar-mode {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mode-toggle {
+      display: flex;
+      background: var(--gray-100);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3px;
+      gap: 2px;
+    }
+    .mode-btn {
+      padding: 6px 14px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--gray-500);
+      font-family: var(--font);
+      transition: all .15s;
+    }
+    .mode-btn.active {
+      background: var(--white);
+      color: var(--red);
+      font-family: var(--font-bold);
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+    }
+
+    /* Messages area */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 48px;
+      color: var(--gray-400);
+    }
+    .empty-icon {
+      width: 64px; height: 64px;
+      background: var(--gray-100);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+    .empty-title {
+      font-family: var(--font-bold);
+      font-size: 18px;
+      color: var(--gray-700);
+      margin-bottom: 8px;
+    }
+    .empty-sub {
+      font-size: 13px;
+      color: var(--gray-400);
+      max-width: 380px;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      max-width: 520px;
+    }
+    .suggestion-chip {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--gray-600);
+      cursor: pointer;
+      background: var(--white);
+      transition: all .15s;
+    }
+    .suggestion-chip:hover {
+      border-color: var(--red);
+      color: var(--red);
+      background: #FFF5F5;
+    }
+
+    /* Message bubbles */
+    .message { display: flex; flex-direction: column; gap: 6px; max-width: 780px; }
+    .message.user { align-self: flex-end; align-items: flex-end; }
+    .message.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .msg-meta {
+      font-size: 11px;
+      color: var(--gray-300);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .msg-meta-avatar {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .user .msg-meta-avatar { background: var(--red); color: var(--white); }
+    .assistant .msg-meta-avatar { background: var(--gray-800); color: var(--gray-200); }
+
+    .msg-bubble {
+      padding: 13px 17px;
+      border-radius: var(--radius-lg);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .user .msg-bubble {
+      background: var(--red);
+      color: var(--white);
+      border-bottom-right-radius: 4px;
+    }
+    .assistant .msg-bubble {
+      background: var(--gray-100);
+      color: var(--gray-700);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* SQL block */
+    .sql-card {
+      background: var(--gray-900);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255,255,255,.08);
+      overflow: hidden;
+      width: 100%;
+    }
+    .sql-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    .sql-card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sql-card-label-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--red-light);
+    }
+    .sql-copy {
+      background: none;
+      border: none;
+      color: var(--gray-400);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background .12s, color .12s;
+    }
+    .sql-copy:hover { background: rgba(255,255,255,.07); color: var(--white); }
+    .sql-code {
+      padding: 16px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 13px;
+      color: #E5E7EB;
+      line-height: 1.7;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    /* SQL keyword coloring */
+    .kw { color: #FF6B9D; }
+    .fn { color: #7DD3FC; }
+    .str { color: #86EFAC; }
+    .num { color: #FCD34D; }
+
+    /* Results table */
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      width: 100%;
+    }
+    .result-card-header {
+      padding: 10px 16px;
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--gray-500);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .result-count {
+      font-size: 11px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      color: var(--gray-500);
+      border-radius: 10px;
+      padding: 2px 10px;
+    }
+    .result-table-wrap { overflow-x: auto; max-height: 320px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead { position: sticky; top: 0; z-index: 1; }
+    thead th {
+      background: var(--gray-100);
+      border-bottom: 2px solid var(--border);
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--gray-500);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--gray-100); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #FFFAFA; }
+    tbody td {
+      padding: 9px 14px;
+      color: var(--gray-700);
+      white-space: nowrap;
+    }
+    .null-cell { color: var(--gray-300); font-style: italic; }
+
+    /* Stats row */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      font-size: 11px;
+      color: var(--gray-400);
+      background: var(--gray-100);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 10px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .stat-chip svg { color: var(--gray-300); }
+
+    /* Error bubble */
+    .error-bubble {
+      background: #FFF0F0;
+      border: 1px solid #FFCCCC;
+      border-radius: var(--radius-lg);
+      padding: 13px 17px;
+      font-size: 13px;
+      color: var(--red-dark);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* Thinking bubble */
+    .thinking-bubble {
+      background: var(--gray-100);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      border-bottom-left-radius: 4px;
+      padding: 13px 17px;
+      font-size: 13px;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { transform: scale(.6); opacity:.4; }
+      40% { transform: scale(1); opacity:1; }
+    }
+    .dot-pulse {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .dot-pulse span {
+      width: 6px; height: 6px;
+      background: var(--gray-400);
+      border-radius: 50%;
+      animation: dot-pulse 1.3s infinite ease-in-out;
+    }
+    .dot-pulse span:nth-child(2) { animation-delay: .16s; }
+    .dot-pulse span:nth-child(3) { animation-delay: .32s; }
+
+    /* ── Input bar ──────────────────────────────────────────────────── */
+    .chat-input-bar {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--white);
+      flex-shrink: 0;
+    }
+    .input-inner {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 10px 12px 10px 16px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .input-inner:focus-within {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(204,0,0,.08);
+    }
+    #chat-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--gray-700);
+      resize: none;
+      max-height: 140px;
+      line-height: 1.5;
+      background: transparent;
+    }
+    #chat-input::placeholder { color: var(--gray-300); }
+    .send-btn {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: var(--red);
+      border: none;
+      color: var(--white);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s, transform .1s;
+    }
+    .send-btn:hover { background: var(--red-dark); }
+    .send-btn:active { transform: scale(.93); }
+    .send-btn:disabled { background: var(--gray-200); cursor: not-allowed; }
+
+    .input-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 2px 0;
+    }
+    .input-hint { font-size: 11px; color: var(--gray-300); }
+    .input-tools { display: flex; gap: 6px; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .connect-brand { display: none; }
+      .sidebar { display: none; }
+      .connect-form-wrap { padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VIEW 1 — CONNECT
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-connect" class="view active">
+
+  <!-- Left branding -->
+  <div class="connect-brand">
+    <div class="brand-logo">
+      <img src="/static/Wedy.ai Logo.jpg" alt="Wedy.ai" onerror="this.style.display='none'" />
+    </div>
+
+    <h1 class="brand-headline">Chat with your<br /><em>database</em> naturally.</h1>
+    <p class="brand-sub">Connect any database and ask questions in plain English. Powered by frontier LLMs that explore your schema live.</p>
+
+    <div class="brand-features">
+      <div class="brand-feature">
+        <div class="brand-feature-icon">⚡</div>
+        <span>Zero configuration — just a connection string</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">🔍</div>
+        <span>Live schema exploration — no pre-embedding needed</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">✓</div>
+        <span>Self-correcting — runs and verifies SQL automatically</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">🔒</div>
+        <span>Read-only — no data modification possible</span>
+      </div>
+    </div>
+
+    <div class="brand-footer">© 2026 Elsewedy Electric · Wedy.ai Platform</div>
+  </div>
+
+  <!-- Right form -->
+  <div class="connect-form-wrap">
+    <div class="connect-form-card">
+      <h2 class="connect-form-title">Connect to your database</h2>
+      <p class="connect-form-subtitle">Enter your connection string to start chatting.</p>
+
+      <div id="connect-alert" class="alert"></div>
+
+      <div class="field">
+        <label>Connection String</label>
+        <input id="conn-str" type="text"
+          placeholder="sqlite:///company.db  or  postgresql://user:pass@host/db" />
+        <div class="field-hint">Supports SQLite, PostgreSQL, MySQL, SQL Server</div>
+      </div>
+
+      <button class="toggle-advanced" id="toggle-adv" onclick="toggleAdvanced()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        Advanced settings
+      </button>
+
+      <div class="advanced-section" id="advanced-section">
+        <div class="field">
+          <label>LLM Model</label>
+          <input id="adv-model" type="text" value="openai:Qwen/Qwen3.6-35B-A3B" />
+          <div class="field-hint">Format: provider:model-name &nbsp;(openai or anthropic)</div>
+        </div>
+        <div class="field">
+          <label>API Base URL</label>
+          <input id="adv-baseurl" type="text" value="https://ibm-models.elsewedy-ec.com/v1" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>API Key (optional)</label>
+            <input id="adv-apikey" type="password" placeholder="sk-..." />
+          </div>
+          <div class="field">
+            <label>Verify SSL</label>
+            <select id="adv-ssl">
+              <option value="false">Skip (self-signed)</option>
+              <option value="true">Verify</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Domain Instructions (optional)</label>
+          <textarea id="adv-instructions" placeholder="e.g. Revenue = net revenue after refunds. Fiscal year starts July."></textarea>
+        </div>
+        <div class="divider"></div>
+      </div>
+
+      <button class="btn btn-primary" id="connect-btn" onclick="handleConnect()">
+        <span id="connect-btn-text">Connect</span>
+        <div class="spinner" id="connect-spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VIEW 2 — CHAT
+═══════════════════════════════════════════════════════════════════ -->
+<div id="view-chat" class="view">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <img src="/static/Wedy.ai Logo.jpg" alt="Wedy.ai" onerror="this.style.display='none'" />
+      <div class="sidebar-header-text">Wedy<span>.ai</span></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Connected</div>
+      <div class="db-badge">
+        <div class="db-badge-name" id="sb-db-name">—</div>
+        <div class="db-badge-meta"><span class="db-badge-dot"></span><span id="sb-db-meta">—</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Tables</div>
+    </div>
+    <div class="schema-tree" id="schema-tree"></div>
+
+    <div class="sidebar-footer">
+      <button class="disconnect-btn" onclick="handleDisconnect()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Disconnect
+      </button>
+    </div>
+  </div>
+
+  <!-- Chat main -->
+  <div class="chat-main">
+
+    <!-- Top bar -->
+    <div class="chat-topbar">
+      <div class="topbar-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        SQL Chat
+        <span class="topbar-badge" id="topbar-dialect">—</span>
+      </div>
+      <div class="topbar-mode">
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-ask" onclick="setMode('ask')">Agentic</button>
+          <button class="mode-btn" id="mode-write" onclick="setMode('write_sql')">Fast</button>
+        </div>
+        <button class="btn-icon" title="Clear chat" onclick="clearChat()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chat-messages">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">💬</div>
+        <div class="empty-title">Ask your database anything</div>
+        <div class="empty-sub">Type a question below or try one of these examples. The AI will explore the schema and return verified SQL with results.</div>
+        <div class="suggestions" id="suggestions-wrap"></div>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="chat-input-bar">
+      <div class="input-inner">
+        <textarea id="chat-input" rows="1" placeholder="Ask a question about your data…"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="handleSend()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span class="input-hint">Enter to send · Shift+Enter for new line</span>
+        <div class="input-tools">
+          <span id="mode-label" style="font-size:11px;color:var(--gray-400)">Mode: <b style="color:var(--red)">Agentic</b></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+  /* ── State ─────────────────────────────────────────────────────────── */
+  const API = 'http://localhost:8000';
+  let sessionId = null;
+  let queryMode = 'ask';   // 'ask' | 'write_sql'
+  let isQuerying = false;
+
+  /* ── View helpers ──────────────────────────────────────────────────── */
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  /* ── Advanced toggle ───────────────────────────────────────────────── */
+  function toggleAdvanced() {
+    const sec = document.getElementById('advanced-section');
+    const btn = document.getElementById('toggle-adv');
+    const open = sec.classList.toggle('open');
+    btn.classList.toggle('open', open);
+  }
+
+  /* ── Connect ───────────────────────────────────────────────────────── */
+  async function handleConnect() {
+    const connStr = document.getElementById('conn-str').value.trim();
+    if (!connStr) { showAlert('error', 'Please enter a connection string.'); return; }
+
+    setConnectLoading(true);
+    clearAlert();
+
+    const body = {
+      connection_string: connStr,
+      model:       document.getElementById('adv-model').value.trim(),
+      base_url:    document.getElementById('adv-baseurl').value.trim() || null,
+      verify_ssl:  document.getElementById('adv-ssl').value === 'true',
+      extra_body:  { chat_template_kwargs: { enable_thinking: false } },
+      llm_api_key: document.getElementById('adv-apikey').value.trim() || null,
+      instructions:document.getElementById('adv-instructions').value.trim() || null,
+    };
+
+    try {
+      const res = await fetch(`${API}/api/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { showAlert('error', data.detail || 'Connection failed.'); return; }
+
+      sessionId = data.session_id;
+      initChat(data);
+      showView('view-chat');
+    } catch (e) {
+      showAlert('error', `Cannot reach API server at ${API}. Is it running?`);
+    } finally {
+      setConnectLoading(false);
+    }
+  }
+
+  function setConnectLoading(on) {
+    document.getElementById('connect-btn').disabled = on;
+    document.getElementById('connect-btn-text').textContent = on ? 'Connecting…' : 'Connect';
+    document.getElementById('connect-spinner').classList.toggle('visible', on);
+  }
+  function showAlert(type, msg) {
+    const el = document.getElementById('connect-alert');
+    el.className = `alert ${type}`;
+    el.textContent = msg;
+  }
+  function clearAlert() {
+    const el = document.getElementById('connect-alert');
+    el.className = 'alert';
+    el.textContent = '';
+  }
+
+  /* ── Init chat after connect ───────────────────────────────────────── */
+  function initChat(data) {
+    // Sidebar
+    const connStr = document.getElementById('conn-str').value;
+    const dbName = connStr.split('/').pop().split('?')[0] || connStr;
+    document.getElementById('sb-db-name').textContent = dbName;
+    document.getElementById('sb-db-meta').textContent = `${data.dialect} · ${data.table_count} tables`;
+    document.getElementById('topbar-dialect').textContent = data.dialect.toUpperCase();
+
+    // Tables list
+    const tree = document.getElementById('schema-tree');
+    tree.innerHTML = '';
+    data.tables.forEach(t => {
+      const el = document.createElement('div');
+      el.className = 'table-item';
+      el.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/>
+        </svg>
+        ${t}`;
+      el.onclick = () => { document.getElementById('chat-input').value = `Describe the ${t} table`; document.getElementById('chat-input').focus(); };
+      tree.appendChild(el);
+    });
+
+    // Suggestion chips
+    const suggestions = [
+      'Show me the first 10 rows of each table',
+      'How many records are in each table?',
+      'What are the column names and types?',
+      'Find the most recent records',
+      'Show tables with the most data',
+    ];
+    const wrap = document.getElementById('suggestions-wrap');
+    wrap.innerHTML = '';
+    suggestions.forEach(s => {
+      const chip = document.createElement('button');
+      chip.className = 'suggestion-chip';
+      chip.textContent = s;
+      chip.onclick = () => { document.getElementById('chat-input').value = s; handleSend(); };
+      wrap.appendChild(chip);
+    });
+  }
+
+  /* ── Disconnect ────────────────────────────────────────────────────── */
+  async function handleDisconnect() {
+    if (sessionId) {
+      await fetch(`${API}/api/sessions/${sessionId}`, { method: 'DELETE' }).catch(() => {});
+      sessionId = null;
+    }
+    // Clear chat
+    clearChat();
+    showView('view-connect');
+  }
+
+  /* ── Mode toggle ───────────────────────────────────────────────────── */
+  function setMode(m) {
+    queryMode = m;
+    document.getElementById('mode-ask').classList.toggle('active', m === 'ask');
+    document.getElementById('mode-write').classList.toggle('active', m === 'write_sql');
+    const modeLabel = document.getElementById('mode-label');
+    modeLabel.innerHTML = m === 'ask'
+      ? 'Mode: <b style="color:var(--red)">Agentic</b>'
+      : 'Mode: <b style="color:var(--red)">Fast</b>';
+  }
+
+  /* ── Clear chat ────────────────────────────────────────────────────── */
+  function clearChat() {
+    const msgs = document.getElementById('chat-messages');
+    msgs.innerHTML = '';
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.id = 'empty-state';
+    empty.innerHTML = `
+      <div class="empty-icon">💬</div>
+      <div class="empty-title">Ask your database anything</div>
+      <div class="empty-sub">Type a question below or try one of these examples.</div>
+      <div class="suggestions" id="suggestions-wrap"></div>`;
+    msgs.appendChild(empty);
+    // Re-add chips
+    const wrap = empty.querySelector('#suggestions-wrap');
+    ['Show me the first 10 rows', 'How many records in each table?', 'Show column types'].forEach(s => {
+      const chip = document.createElement('button');
+      chip.className = 'suggestion-chip';
+      chip.textContent = s;
+      chip.onclick = () => { document.getElementById('chat-input').value = s; handleSend(); };
+      wrap.appendChild(chip);
+    });
+  }
+
+  /* ── Send message ──────────────────────────────────────────────────── */
+  async function handleSend() {
+    const input = document.getElementById('chat-input');
+    const question = input.value.trim();
+    if (!question || isQuerying || !sessionId) return;
+
+    isQuerying = true;
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('send-btn').disabled = true;
+
+    // Remove empty state
+    const emptyState = document.getElementById('empty-state');
+    if (emptyState) emptyState.remove();
+
+    // Append user message
+    appendMessage('user', question);
+
+    // Append thinking bubble
+    const thinkId = 'think-' + Date.now();
+    appendThinking(thinkId);
+
+    const endpoint = queryMode === 'ask' ? 'ask' : 'write_sql';
+    const bodyPayload = queryMode === 'ask'
+      ? { question, max_rows: 100 }
+      : { question, execute: true, max_rows: 100 };
+
+    try {
+      const res = await fetch(`${API}/api/sessions/${sessionId}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload),
+      });
+      const data = await res.json();
+
+      // Remove thinking
+      document.getElementById(thinkId)?.remove();
+
+      if (!res.ok) {
+        appendError(data.detail || 'Request failed.');
+      } else {
+        appendResult(data);
+      }
+    } catch (e) {
+      document.getElementById(thinkId)?.remove();
+      appendError('Network error — is the API server running?');
+    } finally {
+      isQuerying = false;
+      document.getElementById('send-btn').disabled = false;
+      input.focus();
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  /* ── Message renderers ─────────────────────────────────────────────── */
+  function scrollBottom() {
+    const msgs = document.getElementById('chat-messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function appendMessage(role, text) {
+    const msgs = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = `message ${role}`;
+    const initials = role === 'user' ? 'You' : 'AI';
+    wrap.innerHTML = `
+      <div class="msg-meta">
+        <div class="msg-meta-avatar">${initials[0]}</div>
+        <span>${initials}</span>
+      </div>
+      <div class="msg-bubble">${escHtml(text)}</div>`;
+    msgs.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function appendThinking(id) {
+    const msgs = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message assistant';
+    wrap.id = id;
+    wrap.innerHTML = `
+      <div class="msg-meta">
+        <div class="msg-meta-avatar">A</div>
+        <span>Wedy.ai</span>
+      </div>
+      <div class="thinking-bubble">
+        <div class="dot-pulse"><span></span><span></span><span></span></div>
+        Querying your database…
+      </div>`;
+    msgs.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function appendError(msg) {
+    const msgs = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message assistant';
+    wrap.innerHTML = `
+      <div class="msg-meta">
+        <div class="msg-meta-avatar">A</div><span>Wedy.ai</span>
+      </div>
+      <div class="error-bubble">
+        <span>⚠</span>
+        <span>${escHtml(msg)}</span>
+      </div>`;
+    msgs.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function appendResult(data) {
+    const msgs = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message assistant';
+
+    let html = `
+      <div class="msg-meta">
+        <div class="msg-meta-avatar">A</div>
+        <span>Wedy.ai</span>
+        <span style="color:var(--gray-300)">·</span>
+        <span style="color:var(--gray-300);font-size:11px">${data.duration_ms}ms${data.tool_calls_made ? ' · ' + data.tool_calls_made + ' tool calls' : ''}</span>
+      </div>`;
+
+    if (data.commentary) {
+      html += `<div class="msg-bubble">${escHtml(data.commentary)}</div>`;
+    }
+
+    if (data.sql) {
+      const uid = 'sql-' + Date.now();
+      html += `
+        <div class="sql-card">
+          <div class="sql-card-header">
+            <div class="sql-card-label"><div class="sql-card-label-dot"></div>SQL</div>
+            <button class="sql-copy" onclick="copySql('${uid}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="sql-code" id="${uid}">${highlightSql(escHtml(data.sql))}</pre>
+        </div>`;
+    }
+
+    if (data.error) {
+      html += `<div class="error-bubble"><span>⚠</span><span>${escHtml(data.error)}</span></div>`;
+    }
+
+    if (data.data && data.data.length > 0) {
+      html += buildTable(data.data);
+    } else if (!data.error && data.sql) {
+      html += `<div class="msg-bubble" style="font-size:13px;color:var(--gray-400)">Query executed successfully. 0 rows returned.</div>`;
+    }
+
+    wrap.innerHTML = html;
+    msgs.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function buildTable(rows) {
+    const cols = Object.keys(rows[0]);
+    const uid = 'tbl-' + Date.now();
+    let html = `
+      <div class="result-card">
+        <div class="result-card-header">
+          <div class="result-card-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            Results
+          </div>
+          <span class="result-count">${rows.length} row${rows.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="result-table-wrap">
+          <table>
+            <thead><tr>${cols.map(c => `<th>${escHtml(c)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${rows.map(r => `<tr>${cols.map(c =>
+                `<td>${r[c] === null || r[c] === undefined ? '<span class="null-cell">null</span>' : escHtml(String(r[c]))}</td>`
+              ).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    return html;
+  }
+
+  /* ── Utilities ─────────────────────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function highlightSql(sql) {
+    const kws = ['SELECT','FROM','WHERE','JOIN','LEFT','RIGHT','INNER','OUTER','ON','GROUP BY','ORDER BY','HAVING','LIMIT','OFFSET','WITH','UNION','INSERT','UPDATE','DELETE','AS','AND','OR','NOT','IN','IS','NULL','DISTINCT','COUNT','SUM','AVG','MIN','MAX','COALESCE','CASE','WHEN','THEN','ELSE','END','BY','ASC','DESC','INTO','VALUES','SET'];
+    let out = sql;
+    kws.forEach(kw => {
+      const re = new RegExp(`\\b(${kw})\\b`, 'gi');
+      out = out.replace(re, `<span class="kw">$1</span>`);
+    });
+    // Strings
+    out = out.replace(/('(?:[^']|'')*')/g, `<span class="str">$1</span>`);
+    // Numbers
+    out = out.replace(/\b(\d+(?:\.\d+)?)\b/g, `<span class="num">$1</span>`);
+    return out;
+  }
+
+  function copySql(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const text = el.textContent;
+    navigator.clipboard.writeText(text).catch(() => {});
+    // Flash feedback
+    const btn = el.closest('.sql-card').querySelector('.sql-copy');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied';
+    btn.style.color = '#4ADE80';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 1500);
+  }
+
+  /* ── Keyboard shortcut: Enter on connection string ─────────────────── */
+  document.getElementById('conn-str').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleConnect();
+  });
+</script>
+</body>
+</html>

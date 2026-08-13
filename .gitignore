@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.db
+*.sqlite
+*.sqlite3
+
+# Backend secrets & runtime data
+backend/.env
+backend/data/
+backend/storage/uploads/
+backend/storage/traces/
+backend/storage/demo/*.db
+!backend/storage/**/.gitkeep
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Existing framework's stale venv (from a different machine, unusable here)
+text2sql-framework/text2sql-framework-main/.venv/

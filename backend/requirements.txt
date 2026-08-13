@@ -1,0 +1,18 @@
+# The text2sql reasoning engine — installed editable from the sibling framework folder.
+# Do not modify that package; AgentForge only imports it via app/integrations/text2sql_adapter.py.
+-e ../text2sql-framework/text2sql-framework-main[anthropic,openai]
+
+fastapi>=0.111
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+pydantic[email]>=2.0
+pydantic-settings>=2.2
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
+bcrypt<4.1
+cryptography>=42.0
+python-multipart>=0.0.9
+psycopg2-binary>=2.9
+pymysql>=1.1
+pyodbc>=5.1
+httpx>=0.27
