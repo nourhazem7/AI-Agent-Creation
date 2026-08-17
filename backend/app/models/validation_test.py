@@ -7,7 +7,9 @@ from app.database import Base
 from app.models.common import IdTimestampMixin
 
 TEST_ORIGINS = ("ai_generated", "user_created", "uploaded")
-RUN_STATUSES = ("not_run", "passed", "failed", "error")
+# passed/partial/failed are business-answer verdicts from the LLM judge; error is a technical
+# failure (no judge involved); inconclusive means the judge couldn't confidently decide.
+RUN_STATUSES = ("not_run", "passed", "partial", "failed", "error", "inconclusive")
 
 
 class ValidationTest(IdTimestampMixin, Base):
@@ -17,6 +19,13 @@ class ValidationTest(IdTimestampMixin, Base):
     question: Mapped[str] = mapped_column(Text, nullable=False)
     expected_sql: Mapped[str | None] = mapped_column(Text, nullable=True)
     expected_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Optional, user-authored hard requirements ("must restrict to Enterprise segment and
+    # exactly Credit Card + Bank Transfer"). Unlike expected_sql/expected_answer, this is
+    # authoritative when present — it's a human's own statement of correctness, not an LLM
+    # guess at one. Never auto-generated; only a human sets it.
+    criteria: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin: Mapped[str] = mapped_column(String(20), default="user_created")
 

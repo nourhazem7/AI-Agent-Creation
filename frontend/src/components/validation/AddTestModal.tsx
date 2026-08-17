@@ -16,6 +16,7 @@ const textareaClass =
 export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
   const createTest = useCreateValidationTest(agentId);
   const [question, setQuestion] = useState("");
+  const [criteria, setCriteria] = useState("");
   const [expectedAnswer, setExpectedAnswer] = useState("");
   const [expectedSql, setExpectedSql] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -23,6 +24,7 @@ export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
 
   function reset() {
     setQuestion("");
+    setCriteria("");
     setExpectedAnswer("");
     setExpectedSql("");
     setShowAdvanced(false);
@@ -43,6 +45,7 @@ export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
     try {
       await createTest.mutateAsync({
         question: question.trim(),
+        criteria: criteria.trim() || undefined,
         expected_answer: expectedAnswer.trim() || undefined,
         expected_sql: expectedSql.trim() || undefined,
       });
@@ -88,14 +91,31 @@ export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
         </div>
 
         <div className="flex flex-col gap-1.5">
+          <label htmlFor="test-criteria" className="text-sm font-medium text-ink">
+            Correctness requirement <span className="font-normal text-ink-muted">(optional)</span>
+          </label>
+          <textarea
+            id="test-criteria"
+            rows={2}
+            className={textareaClass}
+            placeholder="What must be true for the answer to be correct? e.g. Must restrict to the Enterprise segment and include exactly Credit Card and Bank Transfer totals."
+            value={criteria}
+            onChange={(e) => setCriteria(e.target.value)}
+          />
+          <p className="text-xs text-ink-muted">
+            If you set this, it's treated as a hard requirement when grading the agent's answer.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <label htmlFor="test-expected-answer" className="text-sm font-medium text-ink">
-            Expected answer <span className="font-normal text-ink-muted">(optional)</span>
+            Example answer <span className="font-normal text-ink-muted">(optional)</span>
           </label>
           <textarea
             id="test-expected-answer"
             rows={2}
             className={textareaClass}
-            placeholder="If you know the answer, enter it here to check the agent's answer against it."
+            placeholder="An example of what the answer might look like — used only as a hint, not graded literally."
             value={expectedAnswer}
             onChange={(e) => setExpectedAnswer(e.target.value)}
           />
@@ -106,7 +126,7 @@ export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
           onClick={() => setShowAdvanced((v) => !v)}
           className="self-start text-xs font-medium text-ink-muted hover:text-ink"
         >
-          {showAdvanced ? "Hide advanced (SQL) option" : "Advanced: add a reference SQL query"}
+          {showAdvanced ? "Hide advanced (SQL) option" : "Advanced: add a reference SQL solution"}
         </button>
 
         {showAdvanced && (
@@ -123,7 +143,9 @@ export function AddTestModal({ agentId, isOpen, onClose }: AddTestModalProps) {
               onChange={(e) => setExpectedSql(e.target.value)}
             />
             <p className="text-xs text-ink-muted">
-              This will be run against your database right now to make sure it's valid.
+              This will be run against your database right now to make sure it's valid. It's shown
+              as one possible solution for diagnostic reference — the agent isn't required to match
+              it exactly.
             </p>
           </div>
         )}

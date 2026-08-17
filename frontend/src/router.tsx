@@ -7,7 +7,6 @@ import DashboardPage from "./pages/DashboardPage";
 import CreateAgentPage from "./pages/CreateAgentPage";
 import ConnectDatabasePage from "./pages/wizard/ConnectDatabasePage";
 import KnowledgeAssetsPage from "./pages/wizard/KnowledgeAssetsPage";
-import PreparationPage from "./pages/wizard/PreparationPage";
 import KnowledgeSummaryPage from "./pages/wizard/KnowledgeSummaryPage";
 import ValidateAgentPage from "./pages/wizard/ValidateAgentPage";
 import ChatPage from "./pages/ChatPage";
@@ -41,7 +40,6 @@ export const router = createBrowserRouter([
     children: [
       { path: "/agents/:agentId/connect", element: <ConnectDatabasePage /> },
       { path: "/agents/:agentId/knowledge", element: <KnowledgeAssetsPage /> },
-      { path: "/agents/:agentId/preparing", element: <PreparationPage /> },
       { path: "/agents/:agentId/summary", element: <KnowledgeSummaryPage /> },
       { path: "/agents/:agentId/validate", element: <ValidateAgentPage /> },
       // /ready lands in Milestone 9.

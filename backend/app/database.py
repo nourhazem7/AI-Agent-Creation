@@ -61,3 +61,6 @@ def run_lightweight_migrations() -> None:
         # Nullable: only populated for runs where a verified reference SQL was actually
         # executed — absent for expected_answer-only and exploratory runs, never a fake "0".
         _ensure_column(conn, "validation_runs", "reference_result", "TEXT", None, nullable=True)
+        _ensure_column(conn, "validation_tests", "criteria", "TEXT", None, nullable=True)
+        _ensure_column(conn, "validation_runs", "agent_answer", "TEXT", None, nullable=True)
+        _ensure_column(conn, "validation_runs", "violated_requirement", "TEXT", None, nullable=True)

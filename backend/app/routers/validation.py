@@ -51,6 +51,7 @@ def create_test(
             question=payload.question,
             expected_sql=payload.expected_sql,
             expected_answer=payload.expected_answer,
+            criteria=payload.criteria,
             notes=payload.notes,
         )
     except ValueError as exc:

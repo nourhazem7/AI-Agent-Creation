@@ -3,29 +3,25 @@ relies on it in Chat.
 
 Every test run always calls the agent's *real* engine (text2sql_adapter.ask, via the exact
 same resolve_engine_for_agent used by chat) — there is no second, parallel SQL-generation
-path here. What differs per test is only how the result is judged, and that judgement
-follows one of three branches, decided per-test from what the test actually has:
+path here. What differs per test is only how the result is judged, and the judgement is never
+"does the agent's SQL/result match one reference SQL's result" — expected_sql is itself just
+one LLM-generated candidate that can misinterpret a business question exactly like the agent
+can, so comparing two independently-fallible interpretations byte-for-byte cannot produce a
+trustworthy signal. Instead:
 
-  1. A verified expected_sql is set -> the authoritative branch. Both the agent's own SQL and
-                                        the reference SQL are executed for real, right now, and
-                                        their *row values* are compared (order-independent) —
-                                        not just "SQL was produced". The reference result is
-                                        persisted on the run so the UI can show it directly,
-                                        rather than asking the reader to trust a verdict.
-  2. Otherwise, expected_answer is set -> loose containment check against the generated
-                                        answer/rows. This is a heuristic fallback used only
-                                        when there's no verified SQL to check against
-                                        deterministically — for AI-generated tests this field
-                                        is often a *description* of the expected result shape,
-                                        not a literal value, so it is never treated as more
-                                        authoritative than a verified reference SQL.
-  3. Neither is set                  -> exploratory: passed only if the engine produced SQL and
-                                        no error. This is never conflated with "the answer is
-                                        correct" — the comparison_note says so every time.
+  - Technical failures (engine won't initialize, the AI model is unreachable, no SQL was
+    produced, or the agent's own SQL errors) are deterministic and never reach a judge —
+    status="error".
+  - Every test that produced a real result is judged by
+    text2sql_adapter.judge_business_answer(): does the agent's actual answer satisfy the
+    business question, using the schema to understand the data. A verified expected_sql, when
+    present, is executed for real and its result is shown as diagnostic evidence — never as
+    ground truth the agent is compared against — see the judge's own docstring for why it's a
+    two-stage call.
 
-"SQL generated" is never treated as "test passed" on its own outside branch 3, and an
-expected_answer is never invented — it only ever comes from what the user (or the verified
-validation_suite Knowledge Asset) actually supplied.
+"SQL generated" is never treated as "test passed" on its own, and an expected_answer/criteria
+is never invented — they only ever come from what the user (or the verified validation_suite
+Knowledge Asset) actually supplied.
 """
 
 from __future__ import annotations
@@ -93,7 +89,7 @@ def list_tests(db: Session, agent: Agent) -> list[ValidationTest]:
 
 def get_summary(db: Session, agent: Agent) -> dict:
     tests = list_tests(db, agent)
-    counts = {"total": len(tests), "passed": 0, "failed": 0, "error": 0, "not_run": 0}
+    counts = {"total": len(tests), "passed": 0, "partial": 0, "failed": 0, "error": 0, "inconclusive": 0, "not_run": 0}
     for test in tests:
         counts[test.last_status] = counts.get(test.last_status, 0) + 1
     return counts
@@ -109,13 +105,17 @@ def create_user_test(
     question: str,
     expected_sql: str | None = None,
     expected_answer: str | None = None,
+    criteria: str | None = None,
     notes: str | None = None,
 ) -> ValidationTest:
     """A non-technical user is never required to supply SQL. When they (optionally) do supply
     expected_sql, it's executed against the real database right now — a broken/unrunnable
-    expected_sql is never silently stored as if it were trustworthy reference data."""
+    expected_sql is never silently stored as if it were trustworthy reference data. `criteria`
+    is the one field treated as authoritative by the judge (see validation_service module
+    docstring) — a human's own statement of hard requirements, never LLM-generated."""
     expected_sql = expected_sql.strip() if expected_sql and expected_sql.strip() else None
     expected_answer = expected_answer.strip() if expected_answer and expected_answer.strip() else None
+    criteria = criteria.strip() if criteria and criteria.strip() else None
 
     verified = False
     if expected_sql:
@@ -131,6 +131,7 @@ def create_user_test(
         question=question.strip(),
         expected_sql=expected_sql,
         expected_answer=expected_answer,
+        criteria=criteria,
         notes=notes.strip() if notes and notes.strip() else None,
         origin="user_created",
         expected_sql_verified=verified,
@@ -146,37 +147,6 @@ def delete_test(db: Session, test: ValidationTest) -> None:
 
 
 # ── Running tests ────────────────────────────────────────────────────────────────────────────
-
-
-def _rows_match(actual: list[dict], reference: list[dict]) -> bool:
-    """Order-independent comparison of two row sets by value. Compares by column *position*
-    (dict insertion order == SELECT order), never by column name/alias — the agent's own SQL
-    and a user's hand-written reference SQL routinely select the same data under different
-    aliases (e.g. `total_orders` vs `order_count`), and that must not count as a mismatch.
-    Cell values are stringified first so int/float/str representation differences between the
-    two SQL executions don't produce false negatives either."""
-    if len(actual) != len(reference):
-        return False
-    if actual and reference and len(actual[0]) != len(reference[0]):
-        return False
-
-    def _normalize(rows: list[dict]) -> list[tuple]:
-        return sorted(tuple("" if v is None else str(v) for v in row.values()) for row in rows)
-
-    return _normalize(actual) == _normalize(reference)
-
-
-def _answer_contains(generated_answer: str, generated_rows: list[dict], expected_answer: str) -> bool:
-    """Loose containment check: the expected answer text must show up, case-insensitively,
-    either in the model's natural-language commentary or in the stringified row data. This is
-    explicitly a heuristic, never claimed as exact semantic matching — comparison_note says so."""
-    needle = expected_answer.strip().lower()
-    if not needle:
-        return False
-    if needle in generated_answer.lower():
-        return True
-    haystack = json.dumps(generated_rows, default=str).lower()
-    return needle in haystack
 
 
 def run_test(db: Session, agent: Agent, test: ValidationTest) -> ValidationRun:
@@ -233,69 +203,51 @@ def run_test(db: Session, agent: Agent, test: ValidationTest) -> ValidationRun:
         db.refresh(run)
         return run
 
+    # A real result exists — hand it to the business-answer judge. A verified reference SQL,
+    # when present, is executed for real (for display + as secondary diagnostic evidence inside
+    # the judge) but its own execution failure never counts against the agent.
+    conn_str = connection_string_for_agent(db, agent)
+    schema_summary = text2sql_adapter.introspect_schema(conn_str)
+
     reference_result_json: str | None = None
-
-    # Branch 1: a verified reference SQL exists — the authoritative, deterministic check.
-    # Takes priority over expected_answer even when both are set, because expected_answer
-    # (especially for AI-generated tests) is frequently a *description* of the expected
-    # result, not a literal value, and must never outrank an actual database comparison.
+    reference_rows: list[dict] | None = None
     if test.expected_sql and test.expected_sql_verified:
-        try:
-            conn_str = connection_string_for_agent(db, agent)
-            reference_rows, ref_error = text2sql_adapter.get_reference_result(conn_str, test.expected_sql)
-        except ValueError as exc:
-            reference_rows, ref_error = None, str(exc)
+        rows, ref_error = text2sql_adapter.get_reference_result(conn_str, test.expected_sql)
+        if rows is not None:
+            reference_rows = rows
+            reference_result_json = json.dumps(rows[:_MAX_RESULT_ROWS], default=str)
+        # ref_error is intentionally not surfaced as an agent-facing error — a broken reference
+        # solution just means the judge proceeds without it (see judge_business_answer).
 
-        if ref_error or reference_rows is None:
-            status = "error"
-            note = f"Could not run: the reference expected_sql failed to execute ({ref_error})."
-        else:
-            reference_result_json = json.dumps(reference_rows[:_MAX_RESULT_ROWS], default=str)
-            matched = _rows_match(result.data or [], reference_rows)
-            status = "passed" if matched else "failed"
-            note = (
-                "Compared the agent's own generated SQL's results against the verified reference "
-                f"SQL's actual results (order-independent row comparison). "
-                f"{'Rows matched.' if matched else 'Rows did not match.'}"
-            )
-
-    # Branch 2: expected_answer given, with no verified reference SQL to check against
-    # deterministically — a looser, explicitly-labeled heuristic fallback.
-    elif test.expected_answer:
-        matched = _answer_contains(result.commentary or "", result.data or [], test.expected_answer)
-        status = "passed" if matched else "failed"
-        note = (
-            f"No verified reference SQL was available, so this was compared against the "
-            f"expected-answer text using a loose, case-insensitive containment check (not exact "
-            f"semantic matching). "
-            f"{'Found' if matched else 'Did not find'} \"{test.expected_answer}\" in the agent's "
-            f"response."
-        )
-
-    # Branch 3: exploratory — no expectation was ever supplied, so "passed" only means the
-    # agent produced runnable SQL and no error. This is never described as a correctness check.
-    else:
-        status = "passed"
-        note = (
-            "Exploratory test — no expected answer or reference SQL was supplied, so this only "
-            "confirms the agent produced SQL and ran it without error. It does not verify the "
-            "answer is correct."
-        )
+    verdict = text2sql_adapter.judge_business_answer(
+        agent.llm_model,
+        question=test.question,
+        schema_summary=schema_summary,
+        agent_sql=result.sql,
+        agent_commentary=result.commentary or "",
+        agent_rows=result.data or [],
+        criteria=test.criteria,
+        expected_answer=test.expected_answer,
+        reference_sql=test.expected_sql if test.expected_sql_verified else None,
+        reference_rows=reference_rows,
+    )
 
     run = validation_repository.add_run(
         db,
         validation_test_id=test.id,
         agent_id=agent.id,
-        status=status,
+        status=verdict["verdict"],
         generated_sql=result.sql,
         result_data=result_json,
+        agent_answer=result.commentary or None,
         reference_result=reference_result_json,
-        comparison_note=note,
+        comparison_note=verdict["reasoning"],
+        violated_requirement=verdict["violated_requirement"],
         input_tokens=result.input_tokens or None,
         output_tokens=result.output_tokens or None,
         iterations=result.iterations or None,
     )
-    test.last_status = status
+    test.last_status = verdict["verdict"]
     db.commit()
     db.refresh(run)
     return run
@@ -307,5 +259,8 @@ def run_all(db: Session, agent: Agent) -> list[ValidationRun]:
 
 
 def run_failed(db: Session, agent: Agent) -> list[ValidationRun]:
-    tests = [t for t in list_tests(db, agent) if t.last_status in ("failed", "error")]
+    tests = [
+        t for t in list_tests(db, agent)
+        if t.last_status in ("failed", "error", "partial", "inconclusive")
+    ]
     return [run_test(db, agent, test) for test in tests]

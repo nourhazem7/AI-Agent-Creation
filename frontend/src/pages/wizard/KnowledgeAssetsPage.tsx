@@ -67,7 +67,7 @@ export default function KnowledgeAssetsPage() {
           <div className="mt-6 flex justify-end">
             <Button
               disabled={!allReady}
-              onClick={() => navigate(`/agents/${agentId}/preparing`)}
+              onClick={() => navigate(`/agents/${agentId}/validate`)}
               title={allReady ? undefined : "Configure all three knowledge assets to continue"}
             >
               Start Testing

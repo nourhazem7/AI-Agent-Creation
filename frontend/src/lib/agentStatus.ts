@@ -29,7 +29,9 @@ export function agentResumePath(agentId: string, status: AgentStatus): string {
     case "configuring_knowledge":
       return `/agents/${agentId}/knowledge`;
     case "preparing":
-      return `/agents/${agentId}/preparing`;
+      // No dedicated page for this backend lifecycle status — knowledge prep and
+      // validation happen on the same two pages either side of it.
+      return `/agents/${agentId}/validate`;
     case "ready_for_validation":
       return `/agents/${agentId}/validate`;
     case "validated":
