@@ -1,17 +1,26 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
+import { AgentListTabs } from "../components/agents/AgentListTabs";
+import { ShareAgentModal } from "../components/agents/ShareAgentModal";
 import { Button, Badge, Card } from "../components/ui";
 import { useAgents } from "../hooks/useAgents";
-import { agentResumePath, agentStatusDisplay } from "../lib/agentStatus";
+import { agentResumePath, agentStatusDisplay, isShareable } from "../lib/agentStatus";
 import { apiErrorMessage } from "../api/client";
+import type { Agent } from "../types";
 
 export default function DashboardPage() {
-  const { data: agents, isLoading, isError, error } = useAgents();
+  const { data: allAgents, isLoading, isError, error } = useAgents();
+  const [shareTarget, setShareTarget] = useState<Agent | null>(null);
+
+  // "My Agents" = agents you own, or that you administer as a company admin. Explicitly
+  // shared agents (my_role editor/viewer) live on the Shared With Me page instead.
+  const agents = allAgents?.filter((a) => a.my_role === "owner" || a.my_role === "admin");
 
   return (
     <AppShell>
       <div className="mx-auto flex max-w-5xl flex-col px-6 py-10">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-ink">Agents</h1>
             <p className="mt-1 text-sm text-ink-muted">
@@ -23,6 +32,10 @@ export default function DashboardPage() {
               <Button>Create Agent</Button>
             </Link>
           )}
+        </div>
+
+        <div className="mb-8">
+          <AgentListTabs />
         </div>
 
         {isLoading && (
@@ -66,6 +79,21 @@ export default function DashboardPage() {
                     <p className="line-clamp-2 flex-1 text-sm text-ink-muted">
                       {agent.description || "No description yet."}
                     </p>
+                    {isShareable(agent.status) && (
+                      <div className="flex justify-end">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShareTarget(agent);
+                          }}
+                        >
+                          Share
+                        </Button>
+                      </div>
+                    )}
                   </Card>
                 </Link>
               );
@@ -73,6 +101,10 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {shareTarget && (
+        <ShareAgentModal agent={shareTarget} isOpen onClose={() => setShareTarget(null)} />
+      )}
     </AppShell>
   );
 }

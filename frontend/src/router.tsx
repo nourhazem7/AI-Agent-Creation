@@ -4,6 +4,7 @@ import { AgentWizardLayout } from "./components/layout/AgentWizardLayout";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
+import SharedWithMePage from "./pages/SharedWithMePage";
 import CreateAgentPage from "./pages/CreateAgentPage";
 import ConnectDatabasePage from "./pages/wizard/ConnectDatabasePage";
 import KnowledgeAssetsPage from "./pages/wizard/KnowledgeAssetsPage";
@@ -18,6 +19,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <DashboardPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/shared",
+    element: (
+      <ProtectedRoute>
+        <SharedWithMePage />
       </ProtectedRoute>
     ),
   },

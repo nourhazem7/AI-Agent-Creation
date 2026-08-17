@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import Base, engine
-from app.routers import agents, auth, database_connections, health, knowledge_assets
+from app.routers import agent_shares, agents, auth, companies, database_connections, health, knowledge_assets
 
 # Import models so their tables are registered on Base.metadata before create_all().
 import app.models  # noqa: F401
@@ -32,6 +32,8 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(database_connections.router, prefix="/api")
 app.include_router(knowledge_assets.router, prefix="/api")
+app.include_router(agent_shares.router, prefix="/api")
+app.include_router(companies.router, prefix="/api")
 
 
 @app.on_event("startup")

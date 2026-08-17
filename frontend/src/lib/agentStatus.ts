@@ -20,6 +20,15 @@ export function agentStatusDisplay(status: AgentStatus): StatusDisplay {
   return STATUS_DISPLAY[status] ?? { label: status, tone: "neutral" };
 }
 
+// Mirrors backend SHAREABLE_STATUSES (app/models/agent.py) — an agent can only be shared
+// once it's reached "Ready" (validated) or beyond. This only hides the Share affordance
+// early; the backend is the actual enforcement point.
+const SHAREABLE_STATUSES: readonly AgentStatus[] = ["validated", "active"];
+
+export function isShareable(status: AgentStatus): boolean {
+  return SHAREABLE_STATUSES.includes(status);
+}
+
 /** Where clicking an agent card should resume the lifecycle, based on its current status. */
 export function agentResumePath(agentId: string, status: AgentStatus): string {
   switch (status) {

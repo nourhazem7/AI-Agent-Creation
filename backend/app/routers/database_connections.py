@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_agent_or_404
+from app.deps import get_agent_owner_or_404
 from app.models.agent import Agent
 from app.schemas.database_connection import (
     ConnectionCreateRequest,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/agents/{agent_id}/database", tags=["database-connect
 @router.post("/test", response_model=ConnectionTestResponse)
 def test_connection(
     payload: ConnectionTestRequest,
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
 ) -> ConnectionTestResponse:
     ok, error = database_connection_service.test_connection(payload)
     return ConnectionTestResponse(ok=ok, error=error)
@@ -29,7 +29,7 @@ def test_connection(
 @router.post("", response_model=ConnectionSummaryOut)
 def create_connection(
     payload: ConnectionCreateRequest,
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> ConnectionSummaryOut:
     try:
@@ -42,7 +42,7 @@ def create_connection(
 @router.put("", response_model=ConnectionSummaryOut)
 def replace_connection(
     payload: ConnectionCreateRequest,
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> ConnectionSummaryOut:
     try:
@@ -54,7 +54,7 @@ def replace_connection(
 
 @router.get("", response_model=ConnectionSummaryOut)
 def get_connection(
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> ConnectionSummaryOut:
     conn = database_connection_service.get_connection(db, agent.id)
@@ -66,7 +66,7 @@ def get_connection(
 @router.post("/upload-sqlite")
 async def upload_sqlite(
     file: UploadFile,
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
 ) -> dict:
     if not file.filename or not file.filename.lower().endswith((".db", ".sqlite", ".sqlite3")):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Expected a .db/.sqlite/.sqlite3 file.")

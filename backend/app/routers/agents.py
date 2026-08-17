@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_agent_or_404, get_current_user
+from app.deps import get_agent_editor_or_404, get_agent_or_404, get_agent_owner_or_404, get_current_user
 from app.models.agent import Agent
 from app.models.user import User
 from app.schemas.agent import AgentCreate, AgentOut, AgentUpdate
@@ -18,7 +18,7 @@ def list_agents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Agent]:
-    return agent_service.list_agents(db, current_user.company_id)
+    return agent_service.list_agents(db, current_user)
 
 
 @router.post("", response_model=AgentOut)
@@ -40,13 +40,13 @@ def get_agent(agent: Agent = Depends(get_agent_or_404)) -> Agent:
 @router.patch("/{agent_id}", response_model=AgentOut)
 def update_agent(
     payload: AgentUpdate,
-    agent: Agent = Depends(get_agent_or_404),
+    agent: Agent = Depends(get_agent_editor_or_404),
     db: Session = Depends(get_db),
 ) -> Agent:
     return agent_service.update_agent(db, agent, payload)
 
 
 @router.delete("/{agent_id}")
-def delete_agent(agent: Agent = Depends(get_agent_or_404), db: Session = Depends(get_db)) -> dict:
+def delete_agent(agent: Agent = Depends(get_agent_owner_or_404), db: Session = Depends(get_db)) -> dict:
     agent_service.delete_agent(db, agent)
     return {"ok": True}

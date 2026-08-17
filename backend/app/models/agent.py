@@ -19,6 +19,12 @@ AGENT_STATUSES = (
     "error",
 )
 
+# The statuses at or beyond "validated" — i.e. the agent has finished its setup/validation
+# lifecycle (see the diagram above) and reached the point the frontend's own wizard already
+# routes to as "/ready". An agent can only be shared once it's in one of these; everything
+# earlier (including "error") is owner/admin-only until setup completes.
+SHAREABLE_STATUSES = ("validated", "active")
+
 
 class Agent(IdTimestampMixin, Base):
     __tablename__ = "agents"
@@ -54,5 +60,8 @@ class Agent(IdTimestampMixin, Base):
         back_populates="agent", cascade="all, delete-orphan"
     )
     conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="agent", cascade="all, delete-orphan"
+    )
+    shares: Mapped[list["AgentShare"]] = relationship(
         back_populates="agent", cascade="all, delete-orphan"
     )

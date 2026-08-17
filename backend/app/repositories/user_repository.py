@@ -34,3 +34,12 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 def get_user(db: Session, user_id: str) -> User | None:
     return db.get(User, user_id)
+
+
+def list_active_users_for_company(db: Session, company_id: str) -> list[User]:
+    stmt = (
+        select(User)
+        .where(User.company_id == company_id, User.is_active.is_(True))
+        .order_by(User.full_name, User.email)
+    )
+    return list(db.execute(stmt).scalars().all())

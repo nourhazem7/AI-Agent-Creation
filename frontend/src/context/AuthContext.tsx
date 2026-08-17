@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { fetchMe, login as loginRequest, registerAccount, type LoginPayload, type RegisterPayload } from "../api/auth";
 import { getStoredToken, setStoredToken } from "../api/client";
 import type { MeResponse } from "../types";
@@ -17,6 +18,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const loadMe = useCallback(async () => {
     if (!getStoredToken()) {
@@ -42,25 +44,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (payload: LoginPayload) => {
       const token = await loginRequest(payload);
+      // Signing in as a different account must never serve the previous session's cached
+      // agents/shares — e.g. testing owner then admin then viewer in the same tab.
+      queryClient.clear();
       setStoredToken(token);
       await loadMe();
     },
-    [loadMe],
+    [loadMe, queryClient],
   );
 
   const register = useCallback(
     async (payload: RegisterPayload) => {
       const token = await registerAccount(payload);
+      queryClient.clear();
       setStoredToken(token);
       await loadMe();
     },
-    [loadMe],
+    [loadMe, queryClient],
   );
 
   const logout = useCallback(() => {
     setStoredToken(null);
     setMe(null);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ me, isLoading, isAuthenticated: !!me, login, register, logout }}>

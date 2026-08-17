@@ -27,10 +27,20 @@ export type AgentStatus =
   | "active"
   | "error";
 
+export type AgentAccessRole = "owner" | "admin" | "editor" | "viewer";
+export type ShareRole = "viewer" | "editor";
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export interface Agent {
   id: string;
   company_id: string;
   owner_id: string;
+  owner: UserSummary;
   name: string;
   description: string | null;
   status: AgentStatus;
@@ -39,4 +49,25 @@ export interface Agent {
   knowledge_version: number;
   created_at: string;
   updated_at: string;
+  // Access metadata — my_role is always set; shared_by/shared_at are only set when access
+  // comes from an explicit share (my_role is "editor" or "viewer"), never for owner/admin.
+  my_role: AgentAccessRole;
+  shared_by: UserSummary | null;
+  shared_at: string | null;
+}
+
+export interface AgentShare {
+  id: string;
+  agent_id: string;
+  role: ShareRole;
+  user: UserSummary;
+  shared_by: UserSummary;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanyMember {
+  id: string;
+  email: string;
+  full_name: string | null;
 }
