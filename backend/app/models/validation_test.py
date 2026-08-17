@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -19,6 +19,11 @@ class ValidationTest(IdTimestampMixin, Base):
     expected_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin: Mapped[str] = mapped_column(String(20), default="user_created")
+
+    # True only if expected_sql was actually executed against the connected database and
+    # succeeded (checked at creation/import time). False for legacy rows created before this
+    # column existed, or when expected_sql is absent/unchecked — never inferred as true.
+    expected_sql_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     # Denormalized for cheap listing; ValidationRun rows are the source of truth/history.
     last_status: Mapped[str] = mapped_column(String(20), default="not_run")

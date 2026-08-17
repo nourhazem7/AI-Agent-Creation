@@ -49,3 +49,9 @@ class AgentOut(BaseModel):
     my_role: AgentAccessRole
     shared_by: UserSummary | None = None
     shared_at: datetime | None = None
+
+    # Computed summary fields for dashboard cards — never stored, always derived fresh from
+    # the agent's actual DatabaseConnection/KnowledgeAsset rows (see agent_service._enrich).
+    database_connected: bool = False
+    knowledge_ready_count: int = 0
+    knowledge_total_count: int = 3

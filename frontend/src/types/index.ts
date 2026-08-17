@@ -54,6 +54,9 @@ export interface Agent {
   my_role: AgentAccessRole;
   shared_by: UserSummary | null;
   shared_at: string | null;
+  database_connected: boolean;
+  knowledge_ready_count: number;
+  knowledge_total_count: number;
 }
 
 export interface AgentShare {

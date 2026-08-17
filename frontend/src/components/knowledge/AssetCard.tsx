@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge, Button, Card } from "../ui";
 import { AssetConfigModal } from "./AssetConfigModal";
 import { KNOWLEDGE_ASSET_META } from "../../lib/knowledgeAssetMeta";
-import { assetSummaryLine } from "../../lib/knowledgeAssetPreview";
+import { assetSummaryLine, assetVerificationLabel } from "../../lib/knowledgeAssetPreview";
 import type { AssetType, KnowledgeAsset } from "../../api/knowledgeAssets";
 
 interface AssetCardProps {
@@ -17,6 +17,9 @@ export function AssetCard({ agentId, assetType, asset }: AssetCardProps) {
   const isReady = asset.status === "ready";
   const isError = asset.status === "error";
   const summary = isReady ? assetSummaryLine(assetType, asset.content) : null;
+  const verificationLabel = isReady
+    ? assetVerificationLabel(assetType, asset.source, asset.status, asset.content)
+    : null;
 
   return (
     <>
@@ -37,6 +40,9 @@ export function AssetCard({ agentId, assetType, asset }: AssetCardProps) {
           <p className="text-xs text-ink-muted">
             {summary} · {asset.source === "generated" ? "Generated" : "Uploaded"}
           </p>
+        )}
+        {isReady && verificationLabel && (
+          <p className="text-xs text-success">✓ {verificationLabel}</p>
         )}
         {isError && asset.error_message && (
           <p className="text-xs text-danger">{asset.error_message}</p>

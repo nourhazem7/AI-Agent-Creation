@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.agent import Agent
+from app.models.conversation import Conversation
 from app.models.user import User
 from app.repositories.agent_share_repository import get_by_agent_and_user
 from app.repositories.user_repository import get_user
@@ -74,3 +75,24 @@ def get_agent_owner_or_404(agent: Agent = Depends(get_agent_or_404)) -> Agent:
     if not has_min_role(agent.my_role, "admin"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You don't have permission to manage this agent")
     return agent
+
+
+def get_conversation_or_404(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Conversation:
+    """Same viewer-or-above access rule as get_agent_or_404, applied to the conversation's
+    underlying agent — a conversation is never more accessible than the agent it belongs to.
+    (The original version of this check only verified same-company, which would have let any
+    company member read/send messages on any agent's conversations regardless of sharing —
+    fixed here rather than left in place.)
+    """
+    conversation = db.get(Conversation, conversation_id)
+    agent = db.get(Agent, conversation.agent_id) if conversation else None
+    share = get_by_agent_and_user(db, agent.id, current_user.id) if agent else None
+    role = resolve_role(agent, current_user, share) if agent else None
+
+    if not conversation or not role:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
+    return conversation

@@ -1,17 +1,25 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { AgentListTabs } from "../components/agents/AgentListTabs";
 import { ShareAgentModal } from "../components/agents/ShareAgentModal";
-import { Button, Badge, Card } from "../components/ui";
+import { AgentActionsMenu } from "../components/agents/AgentActionsMenu";
+import { RenameAgentModal } from "../components/agents/RenameAgentModal";
+import { DeleteAgentDialog } from "../components/agents/DeleteAgentDialog";
+import { Button, Badge, Card, StatusIndicator } from "../components/ui";
 import { useAgents } from "../hooks/useAgents";
 import { agentResumePath, agentStatusDisplay, isShareable } from "../lib/agentStatus";
+import { formatRelativeTime } from "../lib/relativeTime";
 import { apiErrorMessage } from "../api/client";
 import type { Agent } from "../types";
 
 export default function DashboardPage() {
   const { data: allAgents, isLoading, isError, error } = useAgents();
+  const navigate = useNavigate();
+
   const [shareTarget, setShareTarget] = useState<Agent | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Agent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
 
   // "My Agents" = agents you own, or that you administer as a company admin. Explicitly
   // shared agents (my_role editor/viewer) live on the Shared With Me page instead.
@@ -29,7 +37,7 @@ export default function DashboardPage() {
           </div>
           {!!agents?.length && (
             <Link to="/agents/new">
-              <Button>Create Agent</Button>
+              <Button>+ Create Agent</Button>
             </Link>
           )}
         </div>
@@ -60,7 +68,7 @@ export default function DashboardPage() {
               Connect your company's data and turn it into a conversational AI assistant.
             </p>
             <Link to="/agents/new" className="mt-6">
-              <Button>Create Agent</Button>
+              <Button>+ Create Agent</Button>
             </Link>
           </div>
         )}
@@ -74,11 +82,30 @@ export default function DashboardPage() {
                   <Card interactive className="flex h-full flex-col gap-3 p-5">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-medium text-ink">{agent.name}</h3>
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        <AgentActionsMenu
+                          onRename={() => setRenameTarget(agent)}
+                          onDelete={() => setDeleteTarget(agent)}
+                        />
+                      </div>
                     </div>
+
                     <p className="line-clamp-2 flex-1 text-sm text-ink-muted">
                       {agent.description || "No description yet."}
                     </p>
+
+                    <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-xs text-ink-muted">
+                      <StatusIndicator
+                        status={agent.database_connected ? "success" : "idle"}
+                        label={agent.database_connected ? "Database connected" : "No database connected"}
+                      />
+                      <span>
+                        Knowledge: {agent.knowledge_ready_count}/{agent.knowledge_total_count} ready
+                      </span>
+                      <span>Updated {formatRelativeTime(agent.updated_at)}</span>
+                    </div>
+
                     {isShareable(agent.status) && (
                       <div className="flex justify-end">
                         <Button
@@ -104,6 +131,25 @@ export default function DashboardPage() {
 
       {shareTarget && (
         <ShareAgentModal agent={shareTarget} isOpen onClose={() => setShareTarget(null)} />
+      )}
+
+      {renameTarget && (
+        <RenameAgentModal
+          agentId={renameTarget.id}
+          currentName={renameTarget.name}
+          isOpen={!!renameTarget}
+          onClose={() => setRenameTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteAgentDialog
+          agentId={deleteTarget.id}
+          agentName={deleteTarget.name}
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => navigate("/", { replace: true })}
+        />
       )}
     </AppShell>
   );
