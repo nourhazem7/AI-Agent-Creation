@@ -23,6 +23,16 @@ export async function createAgent(payload: CreateAgentPayload): Promise<Agent> {
   return data;
 }
 
+export interface UpdateAgentPayload {
+  name?: string;
+  description?: string;
+}
+
+export async function updateAgent(agentId: string, payload: UpdateAgentPayload): Promise<Agent> {
+  const { data } = await apiClient.patch<Agent>(`/agents/${agentId}`, payload);
+  return data;
+}
+
 export async function deleteAgent(agentId: string): Promise<void> {
   await apiClient.delete(`/agents/${agentId}`);
 }

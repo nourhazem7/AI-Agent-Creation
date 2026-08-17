@@ -60,6 +60,9 @@ def save_connection(db: Session, agent: Agent, payload: ConnectionFields) -> Dat
 
     db.commit()
     db.refresh(conn)
+    # New knowledge_version means the old cache key is orphaned anyway, but evict it
+    # explicitly so a stale engine (old connection) never lingers in memory.
+    text2sql_adapter.invalidate_engine(agent.id)
     return conn
 
 
@@ -67,6 +70,16 @@ def decrypted_password(conn: DatabaseConnection) -> str | None:
     if not conn.encrypted_password:
         return None
     return decrypt_secret(conn.encrypted_password)
+
+
+def connection_string_for_agent(db: Session, agent: Agent) -> str:
+    """Resolve an agent's live connection string. Raises ValueError if no database is
+    connected yet — the standard precondition error every caller (knowledge assets, chat)
+    surfaces the same way."""
+    conn = database_connection_repository.get_by_agent(db, agent.id)
+    if not conn:
+        raise ValueError("Connect a database before chatting with this agent.")
+    return text2sql_adapter.connection_string_for(conn, decrypted_password(conn))
 
 
 def save_uploaded_sqlite(agent_id: str, filename: str, content: bytes) -> str:

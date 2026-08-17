@@ -35,3 +35,9 @@ class AgentOut(BaseModel):
     knowledge_version: int
     created_at: datetime
     updated_at: datetime
+
+    # Computed summary fields for dashboard cards — never stored, always derived fresh from
+    # the agent's actual DatabaseConnection/KnowledgeAsset rows (see agent_service._enrich).
+    database_connected: bool = False
+    knowledge_ready_count: int = 0
+    knowledge_total_count: int = 3

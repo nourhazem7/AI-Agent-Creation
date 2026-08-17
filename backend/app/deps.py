@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.agent import Agent
+from app.models.conversation import Conversation
 from app.models.user import User
 from app.repositories.user_repository import get_user
 from app.security import decode_access_token
@@ -44,3 +45,15 @@ def get_agent_or_404(
         # don't leak which agent IDs exist.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent not found")
     return agent
+
+
+def get_conversation_or_404(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Conversation:
+    conversation = db.get(Conversation, conversation_id)
+    agent = db.get(Agent, conversation.agent_id) if conversation else None
+    if not conversation or not agent or agent.company_id != current_user.company_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
+    return conversation

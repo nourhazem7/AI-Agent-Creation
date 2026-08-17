@@ -29,6 +29,7 @@ def upsert(
     original_filename: str | None = None,
     storage_path: str | None = None,
     error_message: str | None = None,
+    verified: bool = False,
 ) -> KnowledgeAsset:
     asset = get_by_agent_and_type(db, agent_id, asset_type)
     if asset is None:
@@ -41,6 +42,7 @@ def upsert(
     asset.original_filename = original_filename
     asset.storage_path = storage_path
     asset.error_message = error_message
+    asset.verified = verified
 
     db.flush()
     return asset

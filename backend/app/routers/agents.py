@@ -17,7 +17,7 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 def list_agents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[Agent]:
+) -> list[AgentOut]:
     return agent_service.list_agents(db, current_user.company_id)
 
 
@@ -26,15 +26,15 @@ def create_agent(
     payload: AgentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> Agent:
+) -> AgentOut:
     return agent_service.create_agent(
         db, company_id=current_user.company_id, owner_id=current_user.id, payload=payload
     )
 
 
 @router.get("/{agent_id}", response_model=AgentOut)
-def get_agent(agent: Agent = Depends(get_agent_or_404)) -> Agent:
-    return agent
+def get_agent(agent: Agent = Depends(get_agent_or_404), db: Session = Depends(get_db)) -> AgentOut:
+    return agent_service.get_agent_detail(db, agent)
 
 
 @router.patch("/{agent_id}", response_model=AgentOut)
@@ -42,7 +42,7 @@ def update_agent(
     payload: AgentUpdate,
     agent: Agent = Depends(get_agent_or_404),
     db: Session = Depends(get_db),
-) -> Agent:
+) -> AgentOut:
     return agent_service.update_agent(db, agent, payload)
 
 

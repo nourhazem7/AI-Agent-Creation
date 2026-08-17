@@ -1,12 +1,22 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
-import { Button, Badge, Card } from "../components/ui";
+import { Button, Badge, Card, StatusIndicator } from "../components/ui";
+import { AgentActionsMenu } from "../components/agents/AgentActionsMenu";
+import { RenameAgentModal } from "../components/agents/RenameAgentModal";
+import { DeleteAgentDialog } from "../components/agents/DeleteAgentDialog";
 import { useAgents } from "../hooks/useAgents";
 import { agentResumePath, agentStatusDisplay } from "../lib/agentStatus";
+import { formatRelativeTime } from "../lib/relativeTime";
 import { apiErrorMessage } from "../api/client";
+import type { Agent } from "../types";
 
 export default function DashboardPage() {
   const { data: agents, isLoading, isError, error } = useAgents();
+  const navigate = useNavigate();
+
+  const [renameTarget, setRenameTarget] = useState<Agent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
 
   return (
     <AppShell>
@@ -20,7 +30,7 @@ export default function DashboardPage() {
           </div>
           {!!agents?.length && (
             <Link to="/agents/new">
-              <Button>Create Agent</Button>
+              <Button>+ Create Agent</Button>
             </Link>
           )}
         </div>
@@ -47,7 +57,7 @@ export default function DashboardPage() {
               Connect your company's data and turn it into a conversational AI assistant.
             </p>
             <Link to="/agents/new" className="mt-6">
-              <Button>Create Agent</Button>
+              <Button>+ Create Agent</Button>
             </Link>
           </div>
         )}
@@ -61,11 +71,29 @@ export default function DashboardPage() {
                   <Card interactive className="flex h-full flex-col gap-3 p-5">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-medium text-ink">{agent.name}</h3>
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        <AgentActionsMenu
+                          onRename={() => setRenameTarget(agent)}
+                          onDelete={() => setDeleteTarget(agent)}
+                        />
+                      </div>
                     </div>
+
                     <p className="line-clamp-2 flex-1 text-sm text-ink-muted">
                       {agent.description || "No description yet."}
                     </p>
+
+                    <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-xs text-ink-muted">
+                      <StatusIndicator
+                        status={agent.database_connected ? "success" : "idle"}
+                        label={agent.database_connected ? "Database connected" : "No database connected"}
+                      />
+                      <span>
+                        Knowledge: {agent.knowledge_ready_count}/{agent.knowledge_total_count} ready
+                      </span>
+                      <span>Updated {formatRelativeTime(agent.updated_at)}</span>
+                    </div>
                   </Card>
                 </Link>
               );
@@ -73,6 +101,25 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {renameTarget && (
+        <RenameAgentModal
+          agentId={renameTarget.id}
+          currentName={renameTarget.name}
+          isOpen={!!renameTarget}
+          onClose={() => setRenameTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteAgentDialog
+          agentId={deleteTarget.id}
+          agentName={deleteTarget.name}
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => navigate("/", { replace: true })}
+        />
+      )}
     </AppShell>
   );
 }

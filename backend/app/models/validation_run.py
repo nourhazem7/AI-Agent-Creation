@@ -23,6 +23,12 @@ class ValidationRun(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # passed | failed | error
     generated_sql: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list[dict], capped
+
+    # Only populated when the test has a verified expected_sql: the *actual* rows obtained by
+    # executing that reference SQL against the real database, at run time. This is the
+    # authoritative expected answer — never the natural-language expected_answer description.
+    reference_result: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list[dict], capped
+
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Plain-language explanation of how the verdict was reached — never claim more

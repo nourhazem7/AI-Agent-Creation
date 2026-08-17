@@ -39,4 +39,7 @@ export interface Agent {
   knowledge_version: number;
   created_at: string;
   updated_at: string;
+  database_connected: boolean;
+  knowledge_ready_count: number;
+  knowledge_total_count: number;
 }

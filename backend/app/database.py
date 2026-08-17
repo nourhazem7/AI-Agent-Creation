@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -30,3 +30,34 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def run_lightweight_migrations() -> None:
+    """No Alembic yet (v1 — see database.py's own docstring), so new *additive* columns on
+    *existing* tables are applied here idempotently. Base.metadata.create_all() only creates
+    tables that don't exist yet — it never alters an existing table, so a fresh column added
+    to a model is invisible to already-existing SQLite databases until this runs.
+
+    Every migration here must be purely additive (ADD COLUMN with a safe default) — this is
+    explicitly not a place for destructive changes. Existing rows must always end up with a
+    safe, honest default, never silently lost or reinterpreted.
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return  # Only SQLite needs this; a real migration tool is required before Postgres.
+
+    def _ensure_column(
+        conn, table: str, column: str, ddl_type: str, default_sql: str | None, nullable: bool = False
+    ) -> None:
+        existing_columns = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+        if column in existing_columns:
+            return
+        constraint = "" if nullable else f" NOT NULL DEFAULT {default_sql}"
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}{constraint}"))
+        conn.commit()
+
+    with engine.connect() as conn:
+        _ensure_column(conn, "knowledge_assets", "verified", "BOOLEAN", "0")
+        _ensure_column(conn, "validation_tests", "expected_sql_verified", "BOOLEAN", "0")
+        # Nullable: only populated for runs where a verified reference SQL was actually
+        # executed — absent for expected_answer-only and exploratory runs, never a fake "0".
+        _ensure_column(conn, "validation_runs", "reference_result", "TEXT", None, nullable=True)

@@ -4,8 +4,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.database import Base, engine
-from app.routers import agents, auth, database_connections, health, knowledge_assets
+from app.database import Base, engine, run_lightweight_migrations
+from app.routers import (
+    agents,
+    auth,
+    chat,
+    database_connections,
+    health,
+    knowledge_assets,
+    knowledge_summary,
+    validation,
+)
 
 # Import models so their tables are registered on Base.metadata before create_all().
 import app.models  # noqa: F401
@@ -32,8 +41,12 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(database_connections.router, prefix="/api")
 app.include_router(knowledge_assets.router, prefix="/api")
+app.include_router(knowledge_summary.router, prefix="/api")
+app.include_router(validation.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    run_lightweight_migrations()
