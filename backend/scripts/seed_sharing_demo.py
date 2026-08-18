@@ -70,8 +70,10 @@ def main() -> None:
 
         admin = _user(company_a.id, "admin@sharing-demo.dev", "Omar (Admin)", role="admin")
         owner = _user(company_a.id, "owner@sharing-demo.dev", "Ahmed (Owner)")
-        editor = _user(company_a.id, "editor@sharing-demo.dev", "Sara (Editor)")
-        viewer = _user(company_a.id, "viewer@sharing-demo.dev", "Omar Khaled (Viewer)")
+        # Two shared-user examples, granted by two different people, so shared_by
+        # attribution is visible from both sides (owner-granted vs admin-granted).
+        shared_by_owner = _user(company_a.id, "sara@sharing-demo.dev", "Sara (Shared by Owner)")
+        shared_by_admin = _user(company_a.id, "viewer@sharing-demo.dev", "Omar Khaled (Shared by Admin)")
         no_access = _user(company_a.id, "noaccess@sharing-demo.dev", "Nadia (No Access)")
         other_company_user = _user(company_b.id, "user@other-company.dev", "Layla (Company B)", role="admin")
 
@@ -100,17 +102,17 @@ def main() -> None:
         )
         db.commit()
 
-        db.add(AgentShare(agent_id=agent.id, user_id=editor.id, role="editor", shared_by_id=owner.id))
-        db.add(AgentShare(agent_id=agent.id, user_id=viewer.id, role="viewer", shared_by_id=admin.id))
+        db.add(AgentShare(agent_id=agent.id, user_id=shared_by_owner.id, role="viewer", shared_by_id=owner.id))
+        db.add(AgentShare(agent_id=agent.id, user_id=shared_by_admin.id, role="viewer", shared_by_id=admin.id))
         db.commit()
 
         print(f"Seed complete. All accounts use password: {DEV_PASSWORD}\n")
         print(f"Company A ({COMPANY_A_NAME}):")
-        print(f"  admin (company admin, full access)........ {admin.email}")
-        print(f"  owner (owns 'HR Analytics Agent')........... {owner.email}")
-        print(f"  editor (shared as editor by the owner)...... {editor.email}")
-        print(f"  viewer (shared as viewer by the admin)...... {viewer.email}")
-        print(f"  no_access (company member, not shared)...... {no_access.email}")
+        print(f"  admin (company admin, full access)................ {admin.email}")
+        print(f"  owner (owns 'HR Analytics Agent')................... {owner.email}")
+        print(f"  shared user (shared by the owner, use-only access).. {shared_by_owner.email}")
+        print(f"  shared user (shared by the admin, use-only access).. {shared_by_admin.email}")
+        print(f"  no_access (company member, not shared)............. {no_access.email}")
         print(f"\nCompany B ({COMPANY_B_NAME}) — for cross-company negative testing:")
         print(f"  {other_company_user.email}")
         print(f"\nAgent id (status=active, shared): {agent.id}")

@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
 
   // "My Agents" = agents you own, or that you administer as a company admin. Explicitly
-  // shared agents (my_role editor/viewer) live on the Shared With Me page instead.
+  // shared agents (my_role "viewer") live on the Shared With Me page instead.
   const agents = allAgents?.filter((a) => a.my_role === "owner" || a.my_role === "admin");
 
   return (

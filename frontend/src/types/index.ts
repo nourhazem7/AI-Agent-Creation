@@ -27,8 +27,10 @@ export type AgentStatus =
   | "active"
   | "error";
 
-export type AgentAccessRole = "owner" | "admin" | "editor" | "viewer";
-export type ShareRole = "viewer" | "editor";
+export type AgentAccessRole = "owner" | "admin" | "viewer";
+// "viewer" is the only share role — a shared user can use/chat with an Agent but never
+// modify it. There is no editor/collaborate concept.
+export type ShareRole = "viewer";
 
 export interface UserSummary {
   id: string;
@@ -50,7 +52,7 @@ export interface Agent {
   created_at: string;
   updated_at: string;
   // Access metadata — my_role is always set; shared_by/shared_at are only set when access
-  // comes from an explicit share (my_role is "editor" or "viewer"), never for owner/admin.
+  // comes from an explicit share (my_role is "viewer"), never for owner/admin.
   my_role: AgentAccessRole;
   shared_by: UserSummary | null;
   shared_at: string | null;

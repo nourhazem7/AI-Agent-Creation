@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.user import UserSummary
 
-ShareRole = Literal["viewer", "editor"]
+# Only "viewer" is a valid share role — see app/models/agent_share.py's SHARE_ROLES.
+ShareRole = Literal["viewer"]
 
 
 class AgentShareCreate(BaseModel):

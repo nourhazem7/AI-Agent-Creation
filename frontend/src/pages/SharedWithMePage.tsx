@@ -13,7 +13,7 @@ export default function SharedWithMePage() {
 
   // Only agents reached through an explicit AgentShare — never an admin's implicit
   // company-wide reach, so this page never misrepresents administrative access as a share.
-  const agents = allAgents?.filter((a) => a.my_role === "editor" || a.my_role === "viewer");
+  const agents = allAgents?.filter((a) => a.my_role === "viewer");
 
   return (
     <AppShell>

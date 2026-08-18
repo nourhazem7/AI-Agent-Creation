@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { listShares, revokeShare, shareAgent, updateShareRole } from "../api/agentShares";
+import { listShares, revokeShare, shareAgent } from "../api/agentShares";
 import { listCompanyMembers } from "../api/companies";
-import type { ShareRole } from "../types";
 
 const AGENTS_KEY = ["agents"] as const;
 const sharesKey = (agentId: string) => ["agents", agentId, "shares"] as const;
@@ -21,19 +20,7 @@ export function useCompanyMembers(enabled = true) {
 export function useShareAgent(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: ShareRole }) => shareAgent(agentId, userId, role),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sharesKey(agentId) });
-      queryClient.invalidateQueries({ queryKey: AGENTS_KEY });
-    },
-  });
-}
-
-export function useUpdateShareRole(agentId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ shareId, role }: { shareId: string; role: ShareRole }) =>
-      updateShareRole(agentId, shareId, role),
+    mutationFn: (userId: string) => shareAgent(agentId, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sharesKey(agentId) });
       queryClient.invalidateQueries({ queryKey: AGENTS_KEY });

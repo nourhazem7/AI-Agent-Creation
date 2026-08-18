@@ -63,13 +63,6 @@ def get_agent_or_404(
     return agent
 
 
-def get_agent_editor_or_404(agent: Agent = Depends(get_agent_or_404)) -> Agent:
-    """Editor-or-above: owner, company admin, or an editor share."""
-    if not has_min_role(agent.my_role, "editor"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You don't have permission to edit this agent")
-    return agent
-
-
 def get_agent_owner_or_404(agent: Agent = Depends(get_agent_or_404)) -> Agent:
     """Owner-or-admin: full control — database connection, sharing, delete."""
     if not has_min_role(agent.my_role, "admin"):
@@ -95,4 +88,9 @@ def get_conversation_or_404(
 
     if not conversation or not role:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
+
+    # Transient, mirrors agent.my_role in get_agent_or_404 — lets the chat router redact
+    # message error_message text (which can echo raw DB-connection exception details) for
+    # shared (viewer) users without a second query.
+    conversation.my_role = role
     return conversation

@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { Badge, Button, Modal, Select } from "../ui";
-import {
-  useAgentShares,
-  useCompanyMembers,
-  useRevokeShare,
-  useShareAgent,
-  useUpdateShareRole,
-} from "../../hooks/useAgentShares";
-import { SHARE_ROLE_OPTIONS } from "../../lib/shareRole";
+import { useAgentShares, useCompanyMembers, useRevokeShare, useShareAgent } from "../../hooks/useAgentShares";
+import { shareRoleMeta } from "../../lib/shareRole";
 import { apiErrorMessage } from "../../api/client";
-import type { Agent, ShareRole } from "../../types";
+import type { Agent } from "../../types";
 
 interface ShareAgentModalProps {
   agent: Agent;
@@ -32,18 +26,16 @@ function PersonAvatar({ name, email }: { name: string | null; email: string }) {
   );
 }
 
-const ROLE_SELECT_OPTIONS = SHARE_ROLE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.meta.label }));
+const CAN_CHAT_LABEL = shareRoleMeta("viewer").label;
 
 export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps) {
   const [mode, setMode] = useState<"list" | "add">("list");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [selectedRole, setSelectedRole] = useState<ShareRole>("viewer");
   const [error, setError] = useState<string | null>(null);
 
   const sharesQuery = useAgentShares(agent.id, isOpen);
   const membersQuery = useCompanyMembers(isOpen && mode === "add");
   const shareMutation = useShareAgent(agent.id);
-  const updateRoleMutation = useUpdateShareRole(agent.id);
   const revokeMutation = useRevokeShare(agent.id);
 
   const shares = sharesQuery.data ?? [];
@@ -55,7 +47,6 @@ export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps
   function resetAndClose() {
     setMode("list");
     setSelectedMemberId("");
-    setSelectedRole("viewer");
     setError(null);
     onClose();
   }
@@ -64,10 +55,9 @@ export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps
     if (!selectedMemberId) return;
     setError(null);
     try {
-      await shareMutation.mutateAsync({ userId: selectedMemberId, role: selectedRole });
+      await shareMutation.mutateAsync(selectedMemberId);
       setMode("list");
       setSelectedMemberId("");
-      setSelectedRole("viewer");
     } catch (err) {
       setError(apiErrorMessage(err, "Could not share the agent."));
     }
@@ -108,17 +98,7 @@ export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps
                     </p>
                     <p className="truncate text-xs text-ink-muted">{share.user.email}</p>
                   </div>
-                  <div className="w-32">
-                    <Select
-                      aria-label={`Access level for ${share.user.email}`}
-                      options={ROLE_SELECT_OPTIONS}
-                      value={share.role}
-                      disabled={updateRoleMutation.isPending}
-                      onChange={(e) =>
-                        updateRoleMutation.mutate({ shareId: share.id, role: e.target.value as ShareRole })
-                      }
-                    />
-                  </div>
+                  <Badge tone="neutral">{CAN_CHAT_LABEL}</Badge>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -142,8 +122,8 @@ export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps
 
           <p className="border-t border-border pt-3 text-xs text-ink-muted">
             You're sharing the Agent, not the database. Database credentials and connection
-            details remain protected — people you share this Agent with can use it according to
-            their access level.
+            details remain protected — people you share this Agent with can use and chat with
+            it, but can't modify it. To customize an Agent, create your own.
           </p>
         </div>
       ) : (
@@ -162,30 +142,10 @@ export function ShareAgentModal({ agent, isOpen, onClose }: ShareAgentModalProps
             <p className="-mt-3 text-xs text-ink-muted">Everyone in your company already has access.</p>
           )}
 
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-ink">Access</span>
-            {SHARE_ROLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setSelectedRole(opt.value)}
-                className={`flex items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors
-                  ${selectedRole === opt.value ? "border-ink bg-canvas" : "border-border bg-surface hover:bg-canvas"}`}
-              >
-                <span
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border
-                    ${selectedRole === opt.value ? "border-ink" : "border-border"}`}
-                  aria-hidden="true"
-                >
-                  {selectedRole === opt.value && <span className="h-2 w-2 rounded-full bg-ink" />}
-                </span>
-                <span>
-                  <span className="block text-sm font-medium text-ink">{opt.meta.label}</span>
-                  <span className="block text-xs text-ink-muted">{opt.meta.description}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+          <p className="text-xs text-ink-muted">
+            They'll be able to {CAN_CHAT_LABEL.toLowerCase()} with this Agent. They won't be able to
+            change it, its knowledge, or its database connection.
+          </p>
 
           {error && <p className="text-sm text-danger">{error}</p>}
 

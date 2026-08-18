@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.user import UserSummary
 
-AgentAccessRole = Literal["owner", "admin", "editor", "viewer"]
+AgentAccessRole = Literal["owner", "admin", "viewer"]
 
 
 class AgentCreate(BaseModel):
@@ -44,8 +44,8 @@ class AgentOut(BaseModel):
 
     # Access metadata — computed per-request by app/services/agent_access.py, never stored.
     # my_role is always present; shared_by/shared_at are set only when access comes from an
-    # explicit AgentShare (my_role in {"editor", "viewer"}) — never for owner/admin access,
-    # so the frontend can't mistake an admin's implicit reach for "shared with me".
+    # explicit AgentShare (my_role == "viewer") — never for owner/admin access, so the
+    # frontend can't mistake an admin's implicit reach for "shared with me".
     my_role: AgentAccessRole
     shared_by: UserSummary | None = None
     shared_at: datetime | None = None

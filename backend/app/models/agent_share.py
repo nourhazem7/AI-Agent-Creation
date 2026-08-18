@@ -6,7 +6,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.common import IdTimestampMixin
 
-SHARE_ROLES = ("viewer", "editor")
+# Only "viewer" is creatable — sharing grants use/read access only, never modify rights.
+# A pre-existing row with role="editor" (from before this change) may still exist in an
+# already-deployed database; agent_access.resolve_role() normalizes any stored role to the
+# same "viewer" access level rather than trusting the column, so no data migration is
+# needed and no legacy row can ever grant elevated access.
+SHARE_ROLES = ("viewer",)
 
 
 class AgentShare(IdTimestampMixin, Base):

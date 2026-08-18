@@ -11,8 +11,12 @@ from app.repositories import agent_share_repository
 from app.schemas.agent_share import AgentShareCreate, AgentShareOut, AgentShareUpdate
 from app.services import agent_share_service
 
-# Every route here requires owner-or-admin (see get_agent_owner_or_404) — an editor or
-# viewer must never see or manage who else has access, per the sharing spec.
+# Every route here requires owner-or-admin (see get_agent_owner_or_404) — a shared
+# (viewer) user must never see or manage who else has access, per the sharing spec.
+#
+# update_share (PATCH) is effectively a no-op now that "viewer" is the only share role —
+# kept rather than removed, since deleting an endpoint is a bigger compatibility break than
+# leaving one that accepts no other value. Nothing in the frontend calls it anymore.
 router = APIRouter(prefix="/agents/{agent_id}/shares", tags=["agent-shares"])
 
 

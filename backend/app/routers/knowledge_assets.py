@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_agent_editor_or_404, get_agent_or_404
+from app.deps import get_agent_or_404, get_agent_owner_or_404
 from app.models.agent import Agent
 from app.models.knowledge_asset import ASSET_TYPES
 from app.schemas.knowledge_asset import KnowledgeAssetNotConfigured, KnowledgeAssetOut
@@ -26,7 +26,7 @@ def _redact_if_viewer(
     item: KnowledgeAssetOut | KnowledgeAssetNotConfigured, my_role: str
 ) -> KnowledgeAssetOut | KnowledgeAssetNotConfigured:
     # error_message can echo raw DB-driver exception text (built from the real, decrypted
-    # connection string) — safe for editor/owner/admin to see and fix, not for viewer.
+    # connection string) — safe for owner/admin to see and fix, not for a shared (viewer) user.
     if my_role != "viewer" or isinstance(item, KnowledgeAssetNotConfigured):
         return item
     return item.model_copy(update={"error_message": None})
@@ -57,7 +57,7 @@ def get_asset(
 @router.post("/{asset_type}/generate", response_model=KnowledgeAssetOut)
 def generate_asset(
     asset_type: str,
-    agent: Agent = Depends(get_agent_editor_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> KnowledgeAssetOut:
     _validate_asset_type(asset_type)
@@ -71,7 +71,7 @@ def generate_asset(
 async def upload_asset(
     asset_type: str,
     file: UploadFile,
-    agent: Agent = Depends(get_agent_editor_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> KnowledgeAssetOut:
     _validate_asset_type(asset_type)
@@ -87,7 +87,7 @@ async def upload_asset(
 @router.delete("/{asset_type}")
 def delete_asset(
     asset_type: str,
-    agent: Agent = Depends(get_agent_editor_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> dict:
     _validate_asset_type(asset_type)

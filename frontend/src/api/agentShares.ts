@@ -1,18 +1,17 @@
 import { apiClient } from "./client";
-import type { AgentShare, ShareRole } from "../types";
+import type { AgentShare } from "../types";
 
 export async function listShares(agentId: string): Promise<AgentShare[]> {
   const { data } = await apiClient.get<AgentShare[]>(`/agents/${agentId}/shares`);
   return data;
 }
 
-export async function shareAgent(agentId: string, userId: string, role: ShareRole): Promise<AgentShare> {
-  const { data } = await apiClient.post<AgentShare>(`/agents/${agentId}/shares`, { user_id: userId, role });
-  return data;
-}
-
-export async function updateShareRole(agentId: string, shareId: string, role: ShareRole): Promise<AgentShare> {
-  const { data } = await apiClient.patch<AgentShare>(`/agents/${agentId}/shares/${shareId}`, { role });
+// A share always grants use/read access ("viewer") — there is no role to choose.
+export async function shareAgent(agentId: string, userId: string): Promise<AgentShare> {
+  const { data } = await apiClient.post<AgentShare>(`/agents/${agentId}/shares`, {
+    user_id: userId,
+    role: "viewer",
+  });
   return data;
 }
 

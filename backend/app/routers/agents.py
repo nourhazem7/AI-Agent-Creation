@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_agent_editor_or_404, get_agent_or_404, get_agent_owner_or_404, get_current_user
+from app.deps import get_agent_or_404, get_agent_owner_or_404, get_current_user
 from app.models.agent import Agent
 from app.models.user import User
 from app.schemas.agent import AgentCreate, AgentOut, AgentUpdate
@@ -40,7 +40,7 @@ def get_agent(agent: Agent = Depends(get_agent_or_404), db: Session = Depends(ge
 @router.patch("/{agent_id}", response_model=AgentOut)
 def update_agent(
     payload: AgentUpdate,
-    agent: Agent = Depends(get_agent_editor_or_404),
+    agent: Agent = Depends(get_agent_owner_or_404),
     db: Session = Depends(get_db),
 ) -> AgentOut:
     return agent_service.update_agent(db, agent, payload)

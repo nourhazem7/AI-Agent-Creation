@@ -94,9 +94,10 @@ def client(db: Session) -> TestClient:
 
 @pytest.fixture()
 def scenario(db: Session):
-    """Company A: admin, owner (owns `agent`), a user later made editor, a user later
-    made viewer, an unrelated member with no access, and an inactive member.
-    Company B: one user, for cross-company negative tests.
+    """Company A: admin, owner (owns `agent`), two users later given explicit shares
+    (used-only "viewer" access — there is no editor/collaborate role), an unrelated member
+    with no access, and an inactive member. Company B: one user, for cross-company
+    negative tests.
     """
     company_a = create_company(db, name="Company A")
     company_b = create_company(db, name="Company B")
@@ -113,8 +114,8 @@ def scenario(db: Session):
 
     admin = _user(company_a.id, "admin@company-a.test", "Admin A", role="admin")
     owner = _user(company_a.id, "owner@company-a.test", "Owner A")
-    editor_target = _user(company_a.id, "editor@company-a.test", "Editor A")
-    viewer_target = _user(company_a.id, "viewer@company-a.test", "Viewer A")
+    shared_user = _user(company_a.id, "shared@company-a.test", "Shared User A")
+    shared_user_2 = _user(company_a.id, "shared2@company-a.test", "Shared User A2")
     outsider = _user(company_a.id, "outsider@company-a.test", "Outsider A")
     inactive = _user(company_a.id, "inactive@company-a.test", "Inactive A")
     inactive.is_active = False
@@ -145,7 +146,7 @@ def scenario(db: Session):
     )
 
     db.commit()
-    for obj in (admin, owner, editor_target, viewer_target, outsider, inactive, company_b_user, agent, draft_agent):
+    for obj in (admin, owner, shared_user, shared_user_2, outsider, inactive, company_b_user, agent, draft_agent):
         db.refresh(obj)
 
     return {
@@ -153,8 +154,8 @@ def scenario(db: Session):
         "company_b": company_b,
         "admin": admin,
         "owner": owner,
-        "editor_target": editor_target,
-        "viewer_target": viewer_target,
+        "shared_user": shared_user,
+        "shared_user_2": shared_user_2,
         "outsider": outsider,
         "inactive": inactive,
         "company_b_user": company_b_user,

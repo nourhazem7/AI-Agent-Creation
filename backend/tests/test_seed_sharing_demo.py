@@ -53,12 +53,12 @@ def test_seed_script_creates_expected_agent_shares(tmp_path):
     cur.execute("SELECT user_id, role, shared_by_id FROM agent_shares WHERE agent_id = ?", (active_agent_id,))
     shares = [dict(r) for r in cur.fetchall()]
     assert len(shares) == 2, f"expected exactly 2 shares on the active agent, got {shares}"
+    # There is no editor role anymore — every share is "viewer" (use/read-only access).
+    assert all(s["role"] == "viewer" for s in shares), f"expected only 'viewer' shares, got {shares}"
 
-    by_role = {s["role"]: s for s in shares}
-    assert users_by_id[by_role["editor"]["user_id"]]["email"] == "editor@sharing-demo.dev"
-    assert users_by_id[by_role["editor"]["shared_by_id"]]["email"] == "owner@sharing-demo.dev"
-    assert users_by_id[by_role["viewer"]["user_id"]]["email"] == "viewer@sharing-demo.dev"
-    assert users_by_id[by_role["viewer"]["shared_by_id"]]["email"] == "admin@sharing-demo.dev"
+    by_granter = {users_by_id[s["shared_by_id"]]["email"]: s for s in shares}
+    assert users_by_id[by_granter["owner@sharing-demo.dev"]["user_id"]]["email"] == "sara@sharing-demo.dev"
+    assert users_by_id[by_granter["admin@sharing-demo.dev"]["user_id"]]["email"] == "viewer@sharing-demo.dev"
 
     # The draft agent must have no shares at all.
     draft_agent_id = draft_agents[0]["id"]
