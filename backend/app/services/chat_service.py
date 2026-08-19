@@ -119,7 +119,7 @@ def _store_error_reply(db: Session, conversation: Conversation, error_text: str,
     return message
 
 
-def _store_success_reply(db: Session, conversation: Conversation, result) -> Message:
+def _store_success_reply(db: Session, agent: Agent, conversation: Conversation, result) -> Message:
     raw_answer = result.commentary.strip() if result.commentary else ""
     content = answer_presentation.format_business_answer(result.data or [])
     message = message_repository.create(
@@ -136,6 +136,9 @@ def _store_success_reply(db: Session, conversation: Conversation, result) -> Mes
     )
     if conversation.title == "New chat":
         conversation.title = result.question[:60]
+    # A successful chat reply is the one real signal the agent is now in active use.
+    if agent.status != "active":
+        agent.status = "active"
     db.commit()
     db.refresh(message)
     return message
@@ -164,7 +167,7 @@ def send_message(db: Session, agent: Agent, conversation: Conversation, question
             db, conversation, result.error or "The model did not produce a usable answer.", sql=result.sql or None
         )
 
-    return _store_success_reply(db, conversation, result)
+    return _store_success_reply(db, agent, conversation, result)
 
 
 def stream_message(db: Session, agent: Agent, conversation: Conversation, question: str) -> Iterator[dict]:
@@ -196,7 +199,7 @@ def stream_message(db: Session, agent: Agent, conversation: Conversation, questi
                     )
                     yield {"type": "error", "error": error_message.error_message, "message_id": error_message.id}
                 else:
-                    message = _store_success_reply(db, conversation, result)
+                    message = _store_success_reply(db, agent, conversation, result)
                     yield {
                         "type": "result",
                         "message_id": message.id,

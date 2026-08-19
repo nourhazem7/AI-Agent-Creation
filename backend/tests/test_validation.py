@@ -20,7 +20,7 @@ from app.integrations import text2sql_adapter
 from app.models.agent import Agent
 from app.repositories import database_connection_repository, knowledge_asset_repository, validation_repository
 from app.schemas.agent import AgentCreate
-from app.services import agent_service, validation_service
+from app.services import agent_service, knowledge_asset_service, validation_service
 
 
 def _make_agent(app_db, company, user, name="Test Agent") -> Agent:
@@ -125,6 +125,56 @@ class TestRetrieval:
 
         assert validation_repository.get_test_for_agent(app_db, agent_a.id, test.id) is not None
         assert validation_repository.get_test_for_agent(app_db, agent_b.id, test.id) is None
+
+    def test_get_by_question_tolerates_pre_existing_duplicate_rows(self, app_db, company, user, hr_demo_db_path):
+        """Real bug: (agent_id, question) has no DB-level uniqueness constraint, and some
+        agents already have two rows with the exact same question text. get_by_question is
+        only ever used as an existence check before inserting from the knowledge asset sync —
+        it must never crash with MultipleResultsFound just because older data has a dupe."""
+        agent = _make_agent(app_db, company, user, name="Dupe Question Agent")
+        _connect_agent(app_db, agent, hr_demo_db_path)
+
+        validation_repository.create_test(app_db, agent_id=agent.id, question="Duplicate question?")
+        validation_repository.create_test(app_db, agent_id=agent.id, question="Duplicate question?")
+        app_db.commit()
+
+        found = validation_repository.get_by_question(app_db, agent.id, "Duplicate question?")
+        assert found is not None
+        assert found.question == "Duplicate question?"
+
+        # And the code path that used to crash on this — listing/syncing tests for the agent —
+        # must complete without raising.
+        tests = validation_service.list_tests(app_db, agent)
+        assert len([t for t in tests if t.question == "Duplicate question?"]) == 2
+
+
+class TestUploadedValidationSuiteSync:
+    """A validation suite uploaded on the Knowledge Assets step must become real
+    ValidationTest rows the moment /validate loads — never require the user to click
+    "Generate test cases" on top of an upload they already provided, and never silently
+    replace it with a different, LLM-generated set."""
+
+    def test_uploaded_validation_suite_is_verified_and_syncs_without_generating(self, app_db, hr_agent):
+        content = json.dumps(
+            [
+                {"question": "How many employees are there?"},
+                {"question": "What is the total headcount by department?"},
+            ]
+        ).encode("utf-8")
+
+        asset = knowledge_asset_service.upload_asset(app_db, hr_agent, "validation_suite", "tests.json", content)
+        assert asset.status == "ready"
+        assert asset.verified is True, (
+            "An uploaded suite already ran its real per-item SQL check "
+            "(_verify_uploaded_validation_items) — it must be marked verified so it can sync, "
+            "the same way a generated suite already is."
+        )
+
+        tests = validation_service.list_tests(app_db, hr_agent)
+        questions = {t.question for t in tests}
+        assert "How many employees are there?" in questions
+        assert "What is the total headcount by department?" in questions
+        assert len(tests) == 2, "Uploading must not create anything beyond exactly what was uploaded"
 
 
 class TestJudgeParsingHelpers:

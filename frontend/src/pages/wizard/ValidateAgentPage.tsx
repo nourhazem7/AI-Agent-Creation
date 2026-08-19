@@ -162,8 +162,9 @@ export default function ValidateAgentPage() {
 
       {!isLoading && !hasTests && (
         <div className="mt-10 flex flex-col items-center gap-4 rounded-lg border border-dashed border-border py-16 text-center">
+          <p className="text-sm font-medium text-ink">No test questions yet</p>
           <p className="text-sm text-ink-muted">
-            No test questions yet. Generate some from your validation suite, or add your own.
+            Add questions manually or generate a validation suite to start testing.
           </p>
           <div className="flex gap-2">
             <Button isLoading={generateAsset.isPending} onClick={handleGenerate}>
@@ -188,7 +189,7 @@ export default function ValidateAgentPage() {
           </div>
 
           <div className="mt-8 flex justify-end">
-            <Button onClick={() => navigate(`/agents/${agentId}/chat`)}>Start chatting with this agent</Button>
+            <Button onClick={() => navigate(`/agents/${agentId}/ready`)}>Continue</Button>
           </div>
         </>
       )}

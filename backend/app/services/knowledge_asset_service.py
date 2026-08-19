@@ -32,11 +32,25 @@ def _connection_string(db: Session, agent: Agent) -> str:
     return text2sql_adapter.connection_string_for(conn, decrypted_password(conn))
 
 
-def _bump_knowledge_version(agent: Agent) -> None:
+def _bump_knowledge_version(db: Session, agent: Agent) -> None:
     agent.knowledge_version += 1
     # Evict any cached TextSQL engine for this agent — its documentation (metadata_hint)
     # or schema-dependent behavior just changed, so chat must rebuild on next use.
     text2sql_adapter.invalidate_engine(agent.id)
+    _maybe_advance_to_ready_for_validation(db, agent)
+
+
+def _maybe_advance_to_ready_for_validation(db: Session, agent: Agent) -> None:
+    """Called every time a knowledge asset write succeeds — the one real, non-arbitrary
+    signal that the agent has what it needs for validation. Forward-only: never regresses an
+    agent that's already moved past this point (e.g. re-generating an asset on an already
+    validated/active agent doesn't demote it)."""
+    if agent.status in ("ready_for_validation", "validated", "active"):
+        return
+    assets = knowledge_asset_repository.list_by_agent(db, agent.id)
+    ready_types = {a.asset_type for a in assets if a.status == "ready"}
+    if ready_types >= set(ASSET_TYPES):
+        agent.status = "ready_for_validation"
 
 
 # ── Schema: deterministic introspection, never LLM-generated, verified before "ready" ──────
@@ -82,7 +96,7 @@ def generate_schema_asset(db: Session, agent: Agent) -> KnowledgeAsset:
         db.commit()
         return asset
 
-    _bump_knowledge_version(agent)
+    _bump_knowledge_version(db, agent)
     db.commit()
     db.refresh(asset)
     return asset
@@ -134,7 +148,7 @@ def generate_documentation_asset(db: Session, agent: Agent) -> KnowledgeAsset:
         db.commit()
         return asset
 
-    _bump_knowledge_version(agent)
+    _bump_knowledge_version(db, agent)
     db.commit()
     db.refresh(asset)
     return asset
@@ -213,7 +227,7 @@ def generate_validation_suite_asset(db: Session, agent: Agent, n: int = 8) -> Kn
         db.commit()
         return asset
 
-    _bump_knowledge_version(agent)
+    _bump_knowledge_version(db, agent)
     db.commit()
     db.refresh(asset)
     return asset
@@ -341,6 +355,12 @@ def upload_asset(db: Session, agent: Agent, asset_type: str, filename: str, cont
             conn_str = None
         questions = _verify_uploaded_validation_items(conn_str, questions)
         asset_content = json.dumps(questions, indent=2)
+        # _verify_uploaded_validation_items already ran the real verification pass (each
+        # item's expected_sql checked against the live database) — the asset-level flag
+        # should reflect that, the same way generate_validation_suite_asset does. Without
+        # this, _sync_from_knowledge_asset's `asset.verified` gate never passes for an
+        # uploaded suite, so the uploaded questions would never become ValidationTest rows.
+        verified = True
     elif asset_type == "schema":
         asset_content, verified = _handle_schema_upload(db, agent, content)
     else:
@@ -359,7 +379,7 @@ def upload_asset(db: Session, agent: Agent, asset_type: str, filename: str, cont
         storage_path=storage_path,
         verified=verified,
     )
-    _bump_knowledge_version(agent)
+    _bump_knowledge_version(db, agent)
     db.commit()
     db.refresh(asset)
     return asset
@@ -369,5 +389,5 @@ def delete_asset(db: Session, agent: Agent, asset_type: str) -> None:
     asset = knowledge_asset_repository.get_by_agent_and_type(db, agent.id, asset_type)
     if asset:
         knowledge_asset_repository.delete(db, asset)
-        _bump_knowledge_version(agent)
+        _bump_knowledge_version(db, agent)
         db.commit()

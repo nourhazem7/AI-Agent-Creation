@@ -29,10 +29,16 @@ def get_test_for_agent(db: Session, agent_id: str, test_id: str) -> ValidationTe
 
 
 def get_by_question(db: Session, agent_id: str, question: str) -> ValidationTest | None:
-    stmt = select(ValidationTest).where(
-        ValidationTest.agent_id == agent_id, ValidationTest.question == question
+    """Existence check only (used to skip re-inserting a question the sync already created) —
+    deliberately tolerant of more than one match rather than asserting uniqueness, since
+    (agent_id, question) has no DB-level uniqueness constraint and older data may already have
+    duplicates."""
+    stmt = (
+        select(ValidationTest)
+        .where(ValidationTest.agent_id == agent_id, ValidationTest.question == question)
+        .limit(1)
     )
-    return db.execute(stmt).scalar_one_or_none()
+    return db.execute(stmt).scalars().first()
 
 
 def create_test(

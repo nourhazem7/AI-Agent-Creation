@@ -11,6 +11,7 @@ import KnowledgeAssetsPage from "./pages/wizard/KnowledgeAssetsPage";
 import KnowledgeSummaryPage from "./pages/wizard/KnowledgeSummaryPage";
 import BusinessRulesPage from "./pages/wizard/BusinessRulesPage";
 import ValidateAgentPage from "./pages/wizard/ValidateAgentPage";
+import ReadyAgentPage from "./pages/wizard/ReadyAgentPage";
 import ChatPage from "./pages/ChatPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -53,7 +54,7 @@ export const router = createBrowserRouter([
       { path: "/agents/:agentId/summary", element: <KnowledgeSummaryPage /> },
       { path: "/agents/:agentId/business-rules", element: <BusinessRulesPage /> },
       { path: "/agents/:agentId/validate", element: <ValidateAgentPage /> },
-      // /ready lands in Milestone 9.
+      { path: "/agents/:agentId/ready", element: <ReadyAgentPage /> },
     ],
   },
   {

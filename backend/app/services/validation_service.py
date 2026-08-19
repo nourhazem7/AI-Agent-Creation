@@ -95,6 +95,19 @@ def get_summary(db: Session, agent: Agent) -> dict:
     return counts
 
 
+def _maybe_advance_to_validated(db: Session, agent: Agent) -> None:
+    """Called after every judged run. The one real, non-arbitrary signal that validation has
+    actually succeeded: every test the agent has has been run and judged "passed" — the same
+    "no outstanding issues" condition the Validate page's own UI already uses. Forward-only —
+    never regresses an agent that's already validated/active because a later-added test hasn't
+    been run yet."""
+    if agent.status in ("validated", "active"):
+        return
+    summary = get_summary(db, agent)
+    if summary["total"] > 0 and summary["passed"] == summary["total"]:
+        agent.status = "validated"
+
+
 # ── Creating user-authored tests ────────────────────────────────────────────────────────────
 
 
@@ -248,6 +261,7 @@ def run_test(db: Session, agent: Agent, test: ValidationTest) -> ValidationRun:
         iterations=result.iterations or None,
     )
     test.last_status = verdict["verdict"]
+    _maybe_advance_to_validated(db, agent)
     db.commit()
     db.refresh(run)
     return run

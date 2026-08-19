@@ -14,7 +14,7 @@ from app.repositories import (
     message_repository,
 )
 from app.schemas.agent import AgentCreate, AgentUpdate
-from app.services import agent_service
+from app.services import agent_service, chat_service, knowledge_asset_service, validation_service
 
 
 def _make_agent(app_db, company, user, name="Test Agent") -> Agent:
@@ -240,3 +240,89 @@ class TestLegacyAgentCompatibility:
         assert detail.database_connected is False
         assert detail.knowledge_ready_count == 0
         assert detail.knowledge_total_count == 3
+
+
+class TestLifecycleTransitions:
+    """Agent.status must only ever move forward from a real completed action — never because
+    the client asked, and never merely because a page was visited. AgentUpdate deliberately
+    has no status field (see the schema-level test below); these exercise the three private
+    transition helpers directly against their real derivation logic, without needing a live
+    LLM/DB round trip through the actual asset-generation or chat pipelines."""
+
+    def test_agent_update_schema_has_no_status_field(self):
+        assert "status" not in AgentUpdate.model_fields
+
+    def test_ready_for_validation_only_once_every_asset_type_is_ready(self, app_db, company, user):
+        agent = _make_agent(app_db, company, user, name="KA Lifecycle Agent")
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=agent.id, asset_type="schema", source="generated", status="ready", content="{}"
+        )
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=agent.id, asset_type="documentation", source="generated", status="ready", content="x"
+        )
+        app_db.commit()
+
+        knowledge_asset_service._maybe_advance_to_ready_for_validation(app_db, agent)
+        assert agent.status == "draft", "Must not advance while validation_suite is still missing"
+
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=agent.id, asset_type="validation_suite", source="generated", status="ready", content="[]"
+        )
+        app_db.commit()
+
+        knowledge_asset_service._maybe_advance_to_ready_for_validation(app_db, agent)
+        assert agent.status == "ready_for_validation"
+
+    def test_ready_for_validation_does_not_regress_an_active_agent(self, app_db, company, user):
+        agent = _make_agent(app_db, company, user, name="Already Active Agent")
+        agent.status = "active"
+        app_db.commit()
+
+        for asset_type in ("schema", "documentation", "validation_suite"):
+            knowledge_asset_repository.upsert(
+                app_db, agent_id=agent.id, asset_type=asset_type, source="generated", status="ready", content="x"
+            )
+        app_db.commit()
+
+        knowledge_asset_service._maybe_advance_to_ready_for_validation(app_db, agent)
+        assert agent.status == "active", "Re-generating an asset must never demote an active agent"
+
+    def test_validated_only_once_every_test_has_passed(self, app_db, company, user):
+        agent = _make_agent(app_db, company, user, name="Validation Lifecycle Agent")
+        agent.status = "ready_for_validation"
+        test_a = validation_service.create_user_test(app_db, agent, question="How many employees?")
+        test_b = validation_service.create_user_test(app_db, agent, question="Total revenue?")
+
+        test_a.last_status = "passed"
+        test_b.last_status = "failed"
+        app_db.commit()
+
+        validation_service._maybe_advance_to_validated(app_db, agent)
+        assert agent.status == "ready_for_validation", "Must not advance while any test hasn't passed"
+
+        test_b.last_status = "passed"
+        app_db.commit()
+
+        validation_service._maybe_advance_to_validated(app_db, agent)
+        assert agent.status == "validated"
+
+    def test_successful_chat_reply_advances_agent_to_active(self, app_db, company, user):
+        import types
+
+        agent = _make_agent(app_db, company, user, name="Chat Lifecycle Agent")
+        agent.status = "validated"
+        conversation = conversation_repository.create(app_db, agent_id=agent.id, user_id=user.id)
+        app_db.commit()
+
+        fake_result = types.SimpleNamespace(
+            question="How many employees are there?",
+            commentary="There are 42 employees.",
+            data=[{"total_employees": 42}],
+            sql="SELECT COUNT(*) AS total_employees FROM employees",
+            error=None,
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+        chat_service._store_success_reply(app_db, agent, conversation, fake_result)
+        assert agent.status == "active"
