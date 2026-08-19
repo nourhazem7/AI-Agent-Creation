@@ -25,7 +25,12 @@ from app.integrations import text2sql_adapter
 from app.models.agent import Agent
 from app.models.conversation import Conversation
 from app.models.message import Message
-from app.repositories import conversation_repository, knowledge_asset_repository, message_repository
+from app.repositories import (
+    agent_memory_repository,
+    conversation_repository,
+    knowledge_asset_repository,
+    message_repository,
+)
 from app.services import answer_presentation
 from app.services.database_connection_service import connection_string_for_agent
 
@@ -70,6 +75,14 @@ def resolve_engine_for_agent(db: Session, agent: Agent):
     doc_asset = knowledge_asset_repository.get_by_agent_and_type(db, agent.id, "documentation")
     metadata_hint = doc_asset.content if doc_asset and doc_asset.status == "ready" else None
 
+    # Agent Memory / business rules — manually-added persistent context (see
+    # models/agent_memory.py) — merged with custom_instructions right here, at the single
+    # seam both chat and validation share, so both automatically apply the same rules.
+    memories = agent_memory_repository.list_by_agent(db, agent.id)
+    instructions = text2sql_adapter.combine_instructions(
+        agent.custom_instructions, [m.content for m in memories]
+    )
+
     trace_dir = Path(settings.storage_dir) / "traces"
     trace_dir.mkdir(parents=True, exist_ok=True)
     trace_file = str(trace_dir / f"{agent.id}.jsonl")
@@ -80,7 +93,7 @@ def resolve_engine_for_agent(db: Session, agent: Agent):
             knowledge_version=agent.knowledge_version,
             llm_model=agent.llm_model,
             connection_string=connection_string,
-            custom_instructions=agent.custom_instructions,
+            custom_instructions=instructions,
             metadata_hint=metadata_hint,
             trace_file=trace_file,
         )

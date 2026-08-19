@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { AssetCard } from "../../components/knowledge/AssetCard";
 import { Button } from "../../components/ui";
 import { useKnowledgeAssets } from "../../hooks/useKnowledgeAssets";
@@ -23,6 +23,12 @@ export default function KnowledgeAssetsPage() {
         Choose how the agent should build its understanding of your database — generate each
         automatically or upload your own.
       </p>
+      <Link
+        to={`/agents/${agentId}/business-rules`}
+        className="mt-2 inline-block text-sm font-medium text-ink-muted underline underline-offset-2 hover:text-ink"
+      >
+        Business Rules →
+      </Link>
 
       {isLoading && (
         <div className="mt-10 flex justify-center">

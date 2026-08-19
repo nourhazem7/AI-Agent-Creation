@@ -8,10 +8,11 @@ const STEPS = [
   { key: "ready", label: "Ready" },
 ] as const;
 
-// "summary" belongs under the Knowledge step from the user's point of view; "results"
-// belongs under Validate.
+// "summary" and "business-rules" both belong under the Knowledge step from the user's
+// point of view; "results" belongs under Validate.
 const STEP_ALIASES: Record<string, (typeof STEPS)[number]["key"]> = {
   summary: "knowledge",
+  "business-rules": "knowledge",
   results: "validate",
 };
 

@@ -65,3 +65,6 @@ class Agent(IdTimestampMixin, Base):
     shares: Mapped[list["AgentShare"]] = relationship(
         back_populates="agent", cascade="all, delete-orphan"
     )
+    memories: Mapped[list["AgentMemory"]] = relationship(
+        back_populates="agent", cascade="all, delete-orphan"
+    )

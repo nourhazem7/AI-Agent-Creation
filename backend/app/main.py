@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import Base, engine, run_lightweight_migrations
 from app.routers import (
+    agent_memory,
     agent_shares,
     agents,
     auth,
@@ -48,6 +49,7 @@ app.include_router(validation.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(agent_shares.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
+app.include_router(agent_memory.router, prefix="/api")
 
 
 @app.on_event("startup")

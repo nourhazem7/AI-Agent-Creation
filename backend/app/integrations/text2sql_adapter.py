@@ -103,6 +103,39 @@ def get_engine(
         return _engine_cache[cache_key]
 
 
+_BUSINESS_RULES_PREAMBLE = (
+    "Business rules explicitly configured by the agent owner. Use a rule when it is "
+    "relevant to the user's question; if a rule is not relevant, ignore it. Do not invent "
+    "additional rules beyond these. These rules describe how the business defines or uses "
+    "its data — they never override the actual database schema, and must never be used to "
+    "invent tables, columns, or data that don't actually exist. If a rule conflicts with "
+    "the real schema or can't be applied, do not fabricate a workaround."
+)
+
+
+def combine_instructions(custom_instructions: str | None, business_rules: list[str]) -> str | None:
+    """Build the final `instructions` string passed to TextSQL — the framework's own
+    documented seam for domain-specific guidance (see TextSQL's own docstring example:
+    `instructions="Revenue = net revenue after refunds."`). Combines the agent's free-form
+    custom_instructions with its explicit Agent Memory / business rules; the two stay
+    separate database records (Agent.custom_instructions vs AgentMemory rows) and are only
+    ever merged here, at the point they're handed to the reasoning engine.
+
+    With no custom_instructions and no business rules, returns None — identical to the
+    pre-Agent-Memory behavior, so an agent with no rules is unaffected.
+    """
+    parts: list[str] = []
+    if custom_instructions and custom_instructions.strip():
+        parts.append(custom_instructions.strip())
+
+    cleaned_rules = [r.strip() for r in business_rules if r and r.strip()]
+    if cleaned_rules:
+        rules_block = "\n".join(f"- {rule}" for rule in cleaned_rules)
+        parts.append(f"{_BUSINESS_RULES_PREAMBLE}\n{rules_block}")
+
+    return "\n\n".join(parts) if parts else None
+
+
 def invalidate_engine(agent_id: str) -> None:
     """Evict every cached engine for this agent (all knowledge_version entries). Called
     whenever the agent's DB connection or knowledge assets change (new knowledge_version
