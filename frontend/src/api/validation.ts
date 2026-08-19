@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 
-export type RunStatus = "not_run" | "passed" | "failed" | "error";
+export type RunStatus = "not_run" | "passed" | "partial" | "failed" | "error" | "inconclusive";
 export type TestOrigin = "ai_generated" | "user_created" | "uploaded";
 
 export interface ValidationRun {
@@ -8,9 +8,11 @@ export interface ValidationRun {
   status: RunStatus;
   generated_sql: string | null;
   result_data: string | null;
+  agent_answer: string | null;
   reference_result: string | null;
   error_message: string | null;
   comparison_note: string | null;
+  violated_requirement: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   iterations: number | null;
@@ -23,6 +25,7 @@ export interface ValidationTest {
   question: string;
   expected_sql: string | null;
   expected_answer: string | null;
+  criteria: string | null;
   notes: string | null;
   origin: TestOrigin;
   expected_sql_verified: boolean;
@@ -35,8 +38,10 @@ export interface ValidationTest {
 export interface ValidationSummary {
   total: number;
   passed: number;
+  partial: number;
   failed: number;
   error: number;
+  inconclusive: number;
   not_run: number;
 }
 
@@ -44,6 +49,7 @@ export interface CreateTestPayload {
   question: string;
   expected_sql?: string;
   expected_answer?: string;
+  criteria?: string;
   notes?: string;
 }
 

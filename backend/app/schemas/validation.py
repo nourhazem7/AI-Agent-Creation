@@ -12,9 +12,11 @@ class ValidationRunOut(BaseModel):
     status: str
     generated_sql: str | None
     result_data: str | None
+    agent_answer: str | None
     reference_result: str | None
     error_message: str | None
     comparison_note: str | None
+    violated_requirement: str | None
     input_tokens: int | None
     output_tokens: int | None
     iterations: int | None
@@ -29,6 +31,7 @@ class ValidationTestOut(BaseModel):
     question: str
     expected_sql: str | None
     expected_answer: str | None
+    criteria: str | None
     notes: str | None
     origin: str
     expected_sql_verified: bool
@@ -42,12 +45,15 @@ class ValidationTestCreate(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     expected_sql: str | None = Field(default=None, max_length=8000)
     expected_answer: str | None = Field(default=None, max_length=2000)
+    criteria: str | None = Field(default=None, max_length=2000)
     notes: str | None = Field(default=None, max_length=2000)
 
 
 class RunSummary(BaseModel):
     total: int
     passed: int
+    partial: int
     failed: int
     error: int
+    inconclusive: int
     not_run: int

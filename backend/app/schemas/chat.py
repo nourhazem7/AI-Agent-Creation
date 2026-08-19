@@ -23,6 +23,7 @@ class MessageOut(BaseModel):
     conversation_id: str
     role: str
     content: str
+    raw_answer: str | None
     sql: str | None
     result_data: str | None
     error_message: str | None

@@ -26,6 +26,7 @@ from app.models.agent import Agent
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.repositories import conversation_repository, knowledge_asset_repository, message_repository
+from app.services import answer_presentation
 from app.services.database_connection_service import connection_string_for_agent
 
 settings = get_settings()
@@ -106,12 +107,14 @@ def _store_error_reply(db: Session, conversation: Conversation, error_text: str,
 
 
 def _store_success_reply(db: Session, conversation: Conversation, result) -> Message:
-    content = result.commentary.strip() if result.commentary else "Here's what I found."
+    raw_answer = result.commentary.strip() if result.commentary else ""
+    content = answer_presentation.format_business_answer(result.data or [])
     message = message_repository.create(
         db,
         conversation_id=conversation.id,
         role="assistant",
         content=content,
+        raw_answer=raw_answer or None,
         sql=result.sql,
         result_data=_result_data_json(result.data) if result.data else None,
         response_type="table" if result.data else "text",

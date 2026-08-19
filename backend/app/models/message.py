@@ -22,7 +22,15 @@ class Message(Base):
     )
 
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # user | assistant
+    # The primary displayed text. For an assistant reply this is the business-language
+    # normalized answer (see text2sql_adapter.normalize_business_answer) — never the agent's
+    # raw markdown-laden commentary directly.
     content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # The agent's original, unnormalized commentary — preserved for debugging/API inspection.
+    # Null for user messages and for any assistant message that predates this column (legacy
+    # rows: content itself was the only text that ever existed for them, nothing was lost).
+    raw_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sql: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list[dict], capped

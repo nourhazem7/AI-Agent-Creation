@@ -14,6 +14,7 @@ export interface ChatMessage {
   conversation_id: string;
   role: "user" | "assistant";
   content: string;
+  raw_answer: string | null;
   sql: string | null;
   result_data: string | null;
   error_message: string | null;

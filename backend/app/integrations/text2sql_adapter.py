@@ -504,3 +504,253 @@ def generate_validation_questions(
             }
         )
     return results
+
+
+# ── Business-answer judge — the Validation Workspace's correctness signal ──────────────────
+#
+# This is deliberately NOT "does the agent's SQL/result match one reference SQL's result."
+# expected_sql is itself just one LLM-generated candidate that can misinterpret a business
+# question exactly like the agent can — comparing two independently-fallible interpretations
+# byte-for-byte cannot produce a trustworthy correctness signal. Instead this judges the
+# agent's actual result against the business question itself, using the schema to understand
+# what the data means, with any reference SQL treated as secondary, non-authoritative
+# diagnostic evidence — never as ground truth.
+#
+# Runs in two stages specifically to avoid anchoring on a possibly-wrong reference:
+#   Stage 1 (always): reason ONLY from the question + the agent's own SQL/commentary/result.
+#     The reference never appears in this call's prompt at all, so the model cannot weight
+#     evidence it hasn't seen.
+#   Stage 2 (only if a reference SQL actually executed): shown the stage-1 verdict plus the
+#     reference, explicitly framed as unreliable diagnostic-only evidence, and instructed to
+#     revise only for a concrete, checkable reason — never merely because results differ.
+
+_JUDGE_ROW_SAMPLE_CAP = 30  # rows inlined into the judge prompt as text (token control)
+
+_ALLOWED_VERDICTS = {"passed", "partial", "failed", "inconclusive"}
+
+_JUDGE_INDEPENDENT_PROMPT = """You are a strict but fair QA reviewer for an AI business-intelligence \
+assistant ("Agent One") that answers natural-language business questions by writing and running SQL \
+against a real company database.
+
+Your job: decide whether Agent One's answer actually and completely answers the business question \
+below — not whether its SQL looks a particular way, and not by comparing it to any other query.
+
+Database schema (for understanding what the data represents):
+{schema}
+
+Business question:
+{question}
+{criteria_section}{expected_answer_section}
+Agent One's SQL:
+{agent_sql}
+
+Agent One's own explanation of its answer:
+{agent_commentary}
+
+Agent One's query result — {agent_row_disclosure}
+{agent_rows}
+
+Grading rubric:
+1. Does the result satisfy the literal and clearly-implied requirements of the question — the \
+right entities, the right filters (present, and not broader or narrower than what was actually \
+asked), the right aggregation/grouping?
+2. Extra columns or extra rows beyond what was strictly asked are NOT a failure by themselves, as \
+long as the specifically requested information is present and correct. Correctly narrowing the \
+result to exactly the values/categories named in the question (e.g. only the two payment methods \
+asked about, not every payment method that exists) is CORRECT behavior, not a deviation.
+3. Column order, column names/aliases, and row order are NEVER grounds for failure on their own.
+4. Different SQL implementation choices (JOIN vs subquery, CTE vs nested query, different but \
+equivalent aggregation approaches) are equally valid — judge only the result and commentary, never \
+the SQL's style.
+5. If the result is empty (0 rows), do not assume this is automatically wrong OR automatically \
+right — reason from the schema and the question whether zero results is actually plausible (e.g. \
+an unusually specific filter might legitimately match nothing) versus indicating a real mistake.
+6. If the question asks for a complete list/enumeration and you were only shown a partial sample of \
+a larger result (see the disclosure above the rows), you cannot verify completeness from the sample \
+alone. Judge what IS visible, but prefer "inconclusive" over a confident "passed" on the \
+completeness dimension specifically, unless the visible sample already shows a clear, verifiable \
+defect — in which case "failed" applies regardless of completeness.
+{criteria_rubric_line}
+
+Respond with ONLY this JSON object, no other text:
+{{"verdict": "passed" | "partial" | "failed" | "inconclusive", "reasoning": "one or two sentences, \
+specific and factual, citing actual values/filters from the evidence above", "violated_requirement": \
+"a short phrase naming what is missing or wrong, or null if passed"}}
+
+verdict meanings — "passed": fully and correctly answers the question. "partial": correct as far \
+as it goes, but missing something the question asked for. "failed": materially wrong (wrong \
+filter, wrong aggregation, wrong entities, or answers a different question). "inconclusive": you \
+cannot confidently determine correctness from the evidence given."""
+
+_JUDGE_RECONCILE_PROMPT = """You are the same QA reviewer, continuing the same review.
+
+A colleague already produced an independent assessment of Agent One's answer, reasoning ONLY from \
+the business question below — without seeing any reference solution:
+
+Independent verdict: {independent_verdict}
+Independent reasoning: {independent_reasoning}
+
+You are now shown ONE possible reference solution, for additional diagnostic context only. It was \
+written by a separate automated assistant, not a human — it may itself be wrong, incomplete, or \
+interpret the question more broadly or narrowly than intended. It is NOT ground truth. Do not defer \
+to it, and do not judge Agent One by whether its result matches this reference's result.
+
+Business question:
+{question}
+
+Reference SQL (one possible solution — may be wrong):
+{reference_sql}
+
+Reference solution's result — {reference_row_disclosure}
+{reference_rows}
+
+Only revise the independent assessment above if this reference reveals a CONCRETE, CHECKABLE flaw \
+in Agent One's own logic — e.g. clear proof it used the wrong table, the wrong filter value, or the \
+wrong aggregation. Never revise merely because the raw results differ, and never merely because the \
+reference's result looks more complete or is shaped differently. If this reference does not change \
+your analysis, keep the original verdict exactly as given.
+
+Respond with ONLY this JSON object, no other text:
+{{"verdict": "passed" | "partial" | "failed" | "inconclusive", "reasoning": "one or two sentences", \
+"violated_requirement": "short phrase or null", "changed": true | false}}"""
+
+
+def _format_rows_for_judge(rows: list[dict] | None, *, engine_capped: bool) -> tuple[str, str]:
+    """Render a capped row sample plus an honest disclosure of what isn't shown.
+
+    engine_capped=True means the caller's row list may itself already be truncated upstream by
+    text2sql's own max_rows slice (a plain Python slice applied after fetching every matching
+    row — see text2sql/generate.py's _parse_result), so hitting that ceiling means the *true*
+    total is unknown and may be larger. engine_capped=False (used for reference-SQL results,
+    fetched with no max_rows at all) means the row count here is always the true total.
+    """
+    rows = rows or []
+    total = len(rows)
+    shown = rows[:_JUDGE_ROW_SAMPLE_CAP]
+    rendered = json.dumps(shown, default=str, indent=2) if shown else "[]"
+
+    if total == 0:
+        disclosure = "returned 0 rows."
+    elif total <= len(shown):
+        disclosure = f"returned {total} row(s) total, all shown below."
+    elif engine_capped and total >= 200:
+        disclosure = (
+            f"returned at least {total} rows. This system caps retrieval at 200 rows, so the true "
+            f"total may be larger than shown here — do not assume this is the complete result. "
+            f"Showing the first {len(shown)} rows below."
+        )
+    else:
+        disclosure = f"returned {total} row(s) total; showing the first {len(shown)} below."
+
+    return rendered, disclosure
+
+
+def _extract_judge_json(text_content: str) -> dict | None:
+    match = re.search(r"\{.*\}", text_content, re.DOTALL)
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _coerce_verdict(parsed: dict | None, *, fallback_note: str) -> dict:
+    """Never silently default to 'passed' — an unparseable or off-schema judge response is
+    always treated as inconclusive, with the parse failure itself recorded as the reasoning."""
+    if not parsed or parsed.get("verdict") not in _ALLOWED_VERDICTS:
+        return {"verdict": "inconclusive", "reasoning": fallback_note, "violated_requirement": None}
+    violated = parsed.get("violated_requirement")
+    return {
+        "verdict": parsed["verdict"],
+        "reasoning": str(parsed.get("reasoning") or "").strip() or "(no reasoning given)",
+        "violated_requirement": str(violated).strip() or None if violated else None,
+    }
+
+
+def judge_business_answer(
+    model: str,
+    *,
+    question: str,
+    schema_summary: dict,
+    agent_sql: str,
+    agent_commentary: str,
+    agent_rows: list[dict],
+    criteria: str | None,
+    expected_answer: str | None,
+    reference_sql: str | None,
+    reference_rows: list[dict] | None,
+) -> dict:
+    """Decide whether the agent's actual result answers the business question. Returns
+    {"verdict": "passed"|"partial"|"failed"|"inconclusive", "reasoning": str,
+    "violated_requirement": str | None}. See the module comment above this function for why
+    this replaced SQL/result equivalence checking, and why it's two calls, not one."""
+    llm = get_chat_model(model)
+    if hasattr(llm, "temperature"):
+        try:
+            llm.temperature = 0.0  # best-effort reproducibility; never fatal if unsupported
+        except Exception:  # noqa: BLE001
+            pass
+
+    agent_rows_text, agent_disclosure = _format_rows_for_judge(agent_rows, engine_capped=True)
+    criteria_section = (
+        f"\nCorrectness requirement (authoritative — treat as a hard requirement):\n{criteria}\n"
+        if criteria else ""
+    )
+    expected_answer_section = (
+        f"\nExample/description of what an answer might look like (non-authoritative, may be "
+        f"incomplete or imprecise — not a literal expected value):\n{expected_answer}\n"
+        if expected_answer else ""
+    )
+    criteria_rubric_line = (
+        "7. A correctness requirement is given above and is authoritative — if the agent's result "
+        'does not satisfy it, the verdict cannot be "passed".'
+        if criteria else ""
+    )
+
+    stage1_prompt = _JUDGE_INDEPENDENT_PROMPT.format(
+        schema=_format_schema_for_prompt(schema_summary),
+        question=question,
+        criteria_section=criteria_section,
+        expected_answer_section=expected_answer_section,
+        agent_sql=agent_sql or "(no SQL)",
+        agent_commentary=agent_commentary or "(no commentary given)",
+        agent_row_disclosure=agent_disclosure,
+        agent_rows=agent_rows_text,
+        criteria_rubric_line=criteria_rubric_line,
+    )
+    response1 = llm.invoke([HumanMessage(content=stage1_prompt)])
+    text1 = response1.content if isinstance(response1.content, str) else str(response1.content)
+    stage1 = _coerce_verdict(
+        _extract_judge_json(text1),
+        fallback_note="The judge's response could not be parsed as valid JSON on the independent assessment pass.",
+    )
+
+    if not reference_sql or reference_rows is None:
+        return stage1
+
+    reference_rows_text, reference_disclosure = _format_rows_for_judge(reference_rows, engine_capped=False)
+    stage2_prompt = _JUDGE_RECONCILE_PROMPT.format(
+        independent_verdict=stage1["verdict"],
+        independent_reasoning=stage1["reasoning"],
+        question=question,
+        reference_sql=reference_sql,
+        reference_row_disclosure=reference_disclosure,
+        reference_rows=reference_rows_text,
+    )
+    response2 = llm.invoke([HumanMessage(content=stage2_prompt)])
+    text2 = response2.content if isinstance(response2.content, str) else str(response2.content)
+    parsed2 = _extract_judge_json(text2)
+    stage2 = _coerce_verdict(
+        parsed2,
+        fallback_note=f"Reconciliation pass failed to parse; keeping independent assessment: {stage1['reasoning']}",
+    )
+
+    actually_changed = stage2["verdict"] != stage1["verdict"] or bool(parsed2 and parsed2.get("changed") is True)
+    if actually_changed:
+        prefix = f"Independent assessment: {stage1['verdict']} ({stage1['reasoning']}). Revised after reviewing a diagnostic reference solution: "
+    else:
+        prefix = "Confirmed after reviewing a diagnostic reference solution as secondary evidence (no change from the independent assessment): "
+    stage2["reasoning"] = f"{prefix}{stage2['reasoning']}"
+    return stage2
