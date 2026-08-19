@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Badge, Button } from "../ui";
 import { SqlBlock } from "../shared/SqlDisclosure";
+import { EvidenceToggle } from "../shared/EvidenceToggle";
 import { withMinDuration } from "../../lib/withMinDuration";
 import { apiErrorMessage } from "../../api/client";
 import { useDeleteValidationTest, useRunValidationTest } from "../../hooks/useValidation";
@@ -191,26 +192,6 @@ function ResultTable({ rows }: { rows: Record<string, unknown>[] }) {
 }
 
 type EvidenceSection = "agent-sql" | "agent-result" | "reference" | null;
-
-function EvidenceToggle({
-  isOpen,
-  label,
-  onClick,
-}: {
-  isOpen: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-xs font-medium hover:text-ink ${isOpen ? "text-ink" : "text-ink-muted"}`}
-    >
-      {isOpen ? "▾" : "▸"} {label}
-    </button>
-  );
-}
 
 export function TestCard({ agentId, test }: { agentId: string; test: ValidationTest }) {
   const runTest = useRunValidationTest(agentId);

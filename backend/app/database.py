@@ -64,3 +64,4 @@ def run_lightweight_migrations() -> None:
         _ensure_column(conn, "validation_tests", "criteria", "TEXT", None, nullable=True)
         _ensure_column(conn, "validation_runs", "agent_answer", "TEXT", None, nullable=True)
         _ensure_column(conn, "validation_runs", "violated_requirement", "TEXT", None, nullable=True)
+        _ensure_column(conn, "messages", "raw_answer", "TEXT", None, nullable=True)
