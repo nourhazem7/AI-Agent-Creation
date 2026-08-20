@@ -81,3 +81,9 @@ def run_lightweight_migrations() -> None:
         _ensure_column(conn, "validation_runs", "agent_answer", "TEXT", None, nullable=True)
         _ensure_column(conn, "validation_runs", "violated_requirement", "TEXT", None, nullable=True)
         _ensure_column(conn, "messages", "raw_answer", "TEXT", None, nullable=True)
+
+        # Value rename, not new data: "user_created" -> "manual" (TEST_ORIGINS renamed for
+        # clarity alongside adding "uploaded" as its own distinct origin). Idempotent — the
+        # WHERE clause matches nothing once already applied.
+        conn.execute(text("UPDATE validation_tests SET origin = 'manual' WHERE origin = 'user_created'"))
+        conn.commit()

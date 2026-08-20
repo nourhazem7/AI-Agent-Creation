@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 
 export type RunStatus = "not_run" | "passed" | "partial" | "failed" | "error" | "inconclusive";
-export type TestOrigin = "ai_generated" | "user_created" | "uploaded";
+export type TestOrigin = "ai_generated" | "uploaded" | "manual";
 
 export interface ValidationRun {
   id: string;

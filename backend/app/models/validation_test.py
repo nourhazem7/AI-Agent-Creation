@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.common import IdTimestampMixin
 
-TEST_ORIGINS = ("ai_generated", "user_created", "uploaded")
+TEST_ORIGINS = ("ai_generated", "uploaded", "manual")
 # passed/partial/failed are business-answer verdicts from the LLM judge; error is a technical
 # failure (no judge involved); inconclusive means the judge couldn't confidently decide.
 RUN_STATUSES = ("not_run", "passed", "partial", "failed", "error", "inconclusive")
@@ -27,7 +27,7 @@ class ValidationTest(IdTimestampMixin, Base):
     criteria: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    origin: Mapped[str] = mapped_column(String(20), default="user_created")
+    origin: Mapped[str] = mapped_column(String(20), default="manual")
 
     # True only if expected_sql was actually executed against the connected database and
     # succeeded (checked at creation/import time). False for legacy rows created before this

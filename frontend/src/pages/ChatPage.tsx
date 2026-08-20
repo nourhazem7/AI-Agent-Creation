@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { MessageBubble } from "../components/chat/MessageBubble";
@@ -22,10 +22,11 @@ export default function ChatPage() {
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const { data: messages, isLoading: messagesLoading } = useMessages(activeConversationId);
-  const sendMessage = useSendMessage(agentId ?? "", activeConversationId);
+  const sendMessage = useSendMessage(agentId ?? "");
 
   const [question, setQuestion] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const questionInputRef = useRef<HTMLInputElement>(null);
 
   // Select the most recent conversation once loaded; otherwise nothing is selected yet.
   useEffect(() => {
@@ -44,6 +45,17 @@ export default function ChatPage() {
     if (activeConversationId === conversationId) setActiveConversationId(null);
   }
 
+  // No bulk-delete endpoint exists — this composes the same single-conversation delete used
+  // above, once per existing conversation, rather than adding any new backend behavior.
+  async function handleDeleteAll() {
+    if (!conversations || conversations.length === 0) return;
+    if (!window.confirm("Delete all conversations? This cannot be undone.")) return;
+    for (const conv of conversations) {
+      await deleteConversation.mutateAsync(conv.id);
+    }
+    setActiveConversationId(null);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!question.trim()) return;
@@ -59,7 +71,7 @@ export default function ChatPage() {
     const text = question;
     setQuestion("");
     try {
-      await sendMessage.mutateAsync(text);
+      await sendMessage.mutateAsync({ conversationId, question: text });
     } catch (err) {
       setSendError(apiErrorMessage(err, "Could not send that message."));
     }
@@ -141,6 +153,26 @@ export default function ChatPage() {
               </div>
             ))}
           </div>
+          {conversations && conversations.length > 0 && (
+            <div className="border-t border-border p-2">
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-ink-muted hover:text-danger"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.5h10M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4.5 4.5v8a1.5 1.5 0 0 0 1.5 1.5h4a1.5 1.5 0 0 0 1.5-1.5v-8"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Delete all conversations
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Conversation */}
@@ -148,10 +180,32 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto p-6">
             {!activeConversationId && (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <h2 className="text-lg font-semibold text-ink">Ask about your business data</h2>
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                  className="mb-3 text-ink-muted"
+                >
+                  <path
+                    d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H9l-4 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <h2 className="text-lg font-semibold text-ink">Start a conversation</h2>
                 <p className="mt-1 max-w-sm text-sm text-ink-muted">
-                  Try: "Which department had the highest number of employees?"
+                  Ask anything about your data. I'll help you find insights, run queries, and answer your questions.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => questionInputRef.current?.focus()}
+                  className="mt-4 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-canvas"
+                >
+                  Ask about your business data
+                </button>
               </div>
             )}
             {activeConversationId && messagesLoading && (
@@ -174,6 +228,7 @@ export default function ChatPage() {
           <form onSubmit={handleSubmit} className="border-t border-border bg-surface p-4">
             <div className="mx-auto flex max-w-3xl gap-2">
               <input
+                ref={questionInputRef}
                 type="text"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
@@ -186,6 +241,9 @@ export default function ChatPage() {
               </Button>
             </div>
             {sendError && <p className="mx-auto mt-2 max-w-3xl text-sm text-danger">{sendError}</p>}
+            <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-ink-muted">
+              Agent can make mistakes. Please verify important information.
+            </p>
           </form>
         </div>
       </div>

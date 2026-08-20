@@ -22,7 +22,12 @@ export function AppShell({ children, headerExtra }: AppShellProps) {
       </a>
 
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-6">
-        <Link to="/" className="text-sm font-semibold tracking-tight text-ink">
+        <Link to="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-ink">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="shrink-0">
+            <rect x="2.5" y="10.5" width="3.4" height="7" rx="0.8" fill="currentColor" />
+            <rect x="8.3" y="6.5" width="3.4" height="11" rx="0.8" fill="currentColor" />
+            <rect x="14.1" y="2.5" width="3.4" height="15" rx="0.8" fill="currentColor" />
+          </svg>
           AgentForge
         </Link>
 

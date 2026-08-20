@@ -50,7 +50,7 @@ def create_test(
     expected_answer: str | None = None,
     criteria: str | None = None,
     notes: str | None = None,
-    origin: str = "user_created",
+    origin: str = "manual",
     expected_sql_verified: bool = False,
 ) -> ValidationTest:
     test = ValidationTest(

@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { AppShell } from "./AppShell";
+import { BackButton } from "../shared/BackButton";
 
 const STEPS = [
   { key: "connect", label: "Database" },
@@ -28,7 +29,10 @@ export function AgentWizardLayout() {
 
   return (
     <AppShell>
-      <div className="border-b border-border bg-surface">
+      <div className="relative border-b border-border bg-surface">
+        <div className="absolute left-6 top-1/2 -translate-y-1/2">
+          <BackButton />
+        </div>
         <ol className="mx-auto flex max-w-3xl items-center gap-2 px-6 py-4">
           {STEPS.map((step, index) => {
             const isDone = activeIndex >= 0 && index < activeIndex;

@@ -46,9 +46,15 @@ _MAX_RESULT_ROWS = 200
 
 def _sync_from_knowledge_asset(db: Session, agent: Agent) -> None:
     """Mirror the ready+verified validation_suite Knowledge Asset's questions into
-    ValidationTest rows, so the same 8 grounded questions built during Knowledge Assets show
+    ValidationTest rows, so the same grounded questions built during Knowledge Assets show
     up here as ready-to-run tests. Idempotent: matched by (agent_id, question), so re-running
-    this never creates duplicates and never touches tests the user has since edited."""
+    this never creates duplicates and never touches tests the user has since edited.
+
+    origin is captured from the asset's own source AT THE MOMENT each row is created, never
+    re-derived later — since sync only ever creates rows for questions it hasn't seen before,
+    an existing test's origin is never rewritten just because the current asset changed (e.g.
+    a later CSV upload must not relabel tests that were actually generated earlier, or vice
+    versa)."""
     asset = knowledge_asset_repository.get_by_agent_and_type(db, agent.id, "validation_suite")
     if not asset or asset.status != "ready" or not asset.verified or not asset.content:
         return
@@ -59,6 +65,8 @@ def _sync_from_knowledge_asset(db: Session, agent: Agent) -> None:
         return
     if not isinstance(candidates, list):
         return
+
+    origin = "uploaded" if asset.source == "uploaded" else "ai_generated"
 
     changed = False
     for item in candidates:
@@ -73,7 +81,7 @@ def _sync_from_knowledge_asset(db: Session, agent: Agent) -> None:
             question=question,
             expected_sql=item.get("expected_sql") or None,
             expected_answer=item.get("expected_answer") or None,
-            origin="ai_generated",
+            origin=origin,
             expected_sql_verified=bool(item.get("sql_verified")),
         )
         changed = True
@@ -146,7 +154,7 @@ def create_user_test(
         expected_answer=expected_answer,
         criteria=criteria,
         notes=notes.strip() if notes and notes.strip() else None,
-        origin="user_created",
+        origin="manual",
         expected_sql_verified=verified,
     )
     db.commit()
@@ -268,13 +276,15 @@ def run_test(db: Session, agent: Agent, test: ValidationTest) -> ValidationRun:
 
 
 def run_all(db: Session, agent: Agent) -> list[ValidationRun]:
-    tests = list_tests(db, agent)
+    # Execution must never create tests — list existing rows directly, without the
+    # knowledge-asset sync that list_tests() runs for the view/listing endpoints.
+    tests = validation_repository.list_tests_by_agent(db, agent.id)
     return [run_test(db, agent, test) for test in tests]
 
 
 def run_failed(db: Session, agent: Agent) -> list[ValidationRun]:
     tests = [
-        t for t in list_tests(db, agent)
+        t for t in validation_repository.list_tests_by_agent(db, agent.id)
         if t.last_status in ("failed", "error", "partial", "inconclusive")
     ]
     return [run_test(db, agent, test) for test in tests]

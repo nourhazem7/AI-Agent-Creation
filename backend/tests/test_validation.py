@@ -67,7 +67,7 @@ class TestCreateUserTest:
         assert test.expected_sql is None
         assert test.expected_sql_verified is False
         assert test.criteria is None
-        assert test.origin == "user_created"
+        assert test.origin == "manual"
         assert test.last_status == "not_run"
 
     def test_create_test_with_valid_expected_sql_is_verified(self, app_db, hr_agent):
@@ -175,6 +175,46 @@ class TestUploadedValidationSuiteSync:
         assert "How many employees are there?" in questions
         assert "What is the total headcount by department?" in questions
         assert len(tests) == 2, "Uploading must not create anything beyond exactly what was uploaded"
+
+    def test_uploaded_suite_sets_origin_uploaded_not_ai_generated(self, app_db, hr_agent):
+        content = json.dumps([{"question": "How many employees are there?"}]).encode("utf-8")
+        knowledge_asset_service.upload_asset(app_db, hr_agent, "validation_suite", "tests.json", content)
+        tests = validation_service.list_tests(app_db, hr_agent)
+        assert tests[0].origin == "uploaded"
+
+    def test_generated_suite_sets_origin_ai_generated(self, app_db, hr_agent):
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=hr_agent.id, asset_type="validation_suite", source="generated",
+            status="ready", verified=True,
+            content=json.dumps([{"question": "How many employees are there?"}]),
+        )
+        app_db.commit()
+        tests = validation_service.list_tests(app_db, hr_agent)
+        assert tests[0].origin == "ai_generated"
+
+    def test_existing_test_origin_is_not_relabeled_by_a_later_upload(self, app_db, hr_agent):
+        """The exact reported bug: a test created while the suite was one source must keep its
+        own origin permanently, even after the current KnowledgeAsset's source later changes —
+        origin must never be re-derived from the asset's current state."""
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=hr_agent.id, asset_type="validation_suite", source="generated",
+            status="ready", verified=True,
+            content=json.dumps([{"question": "How many employees are there?"}]),
+        )
+        app_db.commit()
+        first_sync = validation_service.list_tests(app_db, hr_agent)
+        assert first_sync[0].origin == "ai_generated"
+
+        # The user now uploads a *different* CSV — overwrites the same KnowledgeAsset row's
+        # source/content with a new question.
+        content = json.dumps([{"question": "How many departments are there?"}]).encode("utf-8")
+        knowledge_asset_service.upload_asset(app_db, hr_agent, "validation_suite", "tests2.json", content)
+
+        by_question = {t.question: t.origin for t in validation_service.list_tests(app_db, hr_agent)}
+        assert by_question["How many employees are there?"] == "ai_generated", (
+            "Uploading a new suite must never relabel a previously-existing test's origin"
+        )
+        assert by_question["How many departments are there?"] == "uploaded"
 
 
 class TestJudgeParsingHelpers:
@@ -431,6 +471,29 @@ class TestRunAllAndRunFailed:
         assert after_passing_runs == before_passing_runs, "run_failed must not re-run a passed/other-status test"
         assert after_untouched_runs == before_untouched_runs, "run_failed must not re-run a passed test"
         assert after_also_run_runs == 1, "run_failed must re-run a test whose last_status was 'partial'"
+
+    def test_run_all_and_run_failed_never_sync_new_tests_from_knowledge_asset(self, app_db, hr_agent):
+        """Execution (Run all / Re-run unresolved) must only ever run tests that already
+        exist — never create new ones as a side effect. Only the listing/viewing path
+        (list_tests / get_summary) is allowed to sync from the knowledge asset."""
+        knowledge_asset_repository.upsert(
+            app_db, agent_id=hr_agent.id, asset_type="validation_suite", source="uploaded",
+            status="ready", verified=True,
+            content=json.dumps([{"question": "How many employees are there?"}]),
+        )
+        app_db.commit()
+
+        assert validation_repository.list_tests_by_agent(app_db, hr_agent.id) == []
+
+        validation_service.run_all(app_db, hr_agent)
+        assert validation_repository.list_tests_by_agent(app_db, hr_agent.id) == [], (
+            "run_all must not sync in new tests from the knowledge asset"
+        )
+
+        validation_service.run_failed(app_db, hr_agent)
+        assert validation_repository.list_tests_by_agent(app_db, hr_agent.id) == [], (
+            "run_failed must not sync in new tests from the knowledge asset"
+        )
 
 
 class TestAgentIsolation:

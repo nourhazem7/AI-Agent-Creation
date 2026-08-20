@@ -19,10 +19,13 @@ const STATUS_META: Record<
   inconclusive: { label: "Inconclusive", tone: "neutral" },
 };
 
+// origin is persisted per test at creation time (validation_service._sync_from_knowledge_asset
+// / create_user_test) and never rewritten afterward — a straight lookup, no need to
+// cross-reference the current Knowledge Asset state.
 const ORIGIN_LABEL: Record<ValidationTest["origin"], string> = {
   ai_generated: "AI-generated",
-  user_created: "Your test",
   uploaded: "Uploaded",
+  manual: "Manual",
 };
 
 // A normal employee shouldn't need to understand the judging process to read a verdict —
@@ -260,7 +263,7 @@ export function TestCard({ agentId, test }: { agentId: string; test: ValidationT
           <Button variant="secondary" size="sm" isLoading={status === "running"} onClick={handleRun}>
             {status === "running" ? "Running…" : run ? "Re-run" : "Run test"}
           </Button>
-          {test.origin === "user_created" && (
+          {test.origin === "manual" && (
             <Button variant="ghost" size="sm" onClick={handleDelete} isLoading={deleteTest.isPending}>
               Delete
             </Button>

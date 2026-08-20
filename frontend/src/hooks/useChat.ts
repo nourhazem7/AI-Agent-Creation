@@ -38,12 +38,17 @@ export function useMessages(conversationId: string | null) {
   });
 }
 
-export function useSendMessage(agentId: string, conversationId: string | null) {
+export function useSendMessage(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (question: string) => sendMessage(conversationId as string, question),
-    onSuccess: () => {
-      if (conversationId) queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) });
+    // conversationId is taken per-call (not baked into the hook at render time) — sending the
+    // very first message of a brand-new conversation creates it and sends in the same action,
+    // so the id used here must always be the one just resolved by the caller, never a value
+    // closed over from a stale prior render (that mismatch was the "Conversation not found" bug).
+    mutationFn: ({ conversationId, question }: { conversationId: string; question: string }) =>
+      sendMessage(conversationId, question),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: messagesKey(variables.conversationId) });
       queryClient.invalidateQueries({ queryKey: conversationsKey(agentId) });
     },
   });
